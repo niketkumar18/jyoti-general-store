@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#15803D"/>
+  <rect x="24" y="24" width="464" height="464" rx="104" stroke="#22C55E" stroke-width="8" stroke-dasharray="16 16"/>
+  <!-- Shopping Bag / Store Roof -->
+  <path d="M156 180C156 124.772 200.772 80 256 80C311.228 80 356 124.772 356 180V196H156V180Z" fill="#166534" stroke="#86EFAC" stroke-width="14"/>
+  <rect x="116" y="196" width="280" height="236" rx="24" fill="#FFFFFF"/>
+  <!-- Rupee Symbol -->
+  <path d="M210 260H302M210 292H280M210 236H302M246 292C274 320 298 368 298 368M246 292C226 292 214 280 214 264C214 248 226 236 246 236" stroke="#15803D" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Small DEN badge -->
+  <rect x="176" y="380" width="160" height="32" rx="16" fill="#15803D"/>
+  <text x="256" y="402" font-family="Arial, sans-serif" font-weight="900" font-size="20" fill="#FFFFFF" text-anchor="middle">DEN POS</text>
+</svg>
