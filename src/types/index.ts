@@ -1,6 +1,6 @@
 export type UnitType = 'KG' | 'GM' | 'LITRE' | 'ML' | 'PACKET' | 'PIECE' | 'DOZEN';
 
-export type CategoryType = 
+export type DefaultCategoryType = 
   | 'dal_pulses'      // दाल व दलहन
   | 'oil_ghee'        // तेल व घी
   | 'spices_masala'   // मसाले
@@ -12,6 +12,16 @@ export type CategoryType =
   | 'personal_care'   // व्यक्तिगत देखभाल
   | 'household'       // घरेलू सामान
   | 'other';          // अन्य
+
+export type CategoryType = DefaultCategoryType | (string & {});
+
+export interface ProductCategory {
+  id: string;
+  nameHi: string;
+  nameEn: string;
+  isDefault?: boolean;
+  createdAt?: number;
+}
 
 export interface InventoryItem {
   id?: number;

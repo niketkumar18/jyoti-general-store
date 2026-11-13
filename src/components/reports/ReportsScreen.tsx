@@ -21,6 +21,7 @@ import { db } from '../../db';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency } from '../../utils/formatters';
 import { CreditBadge } from '../common/CreditBadge';
+import { useCategories } from '../../utils/categories';
 import { 
   exportDailyProfitToCsv, 
   exportMonthlyProfitToCsv, 
@@ -41,6 +42,7 @@ type ReportTab = 'DAILY' | 'MONTHLY' | 'YEARLY';
 
 export const ReportsScreen: React.FC = () => {
   const { language, t } = useLanguage();
+  const { getLabel } = useCategories();
   const today = new Date();
   
   const [activeTab, setActiveTab] = useState<ReportTab>('DAILY');
@@ -134,9 +136,10 @@ export const ReportsScreen: React.FC = () => {
         totalCost += lineCost;
 
         const existing = itemMap.get(itemKey);
-        const cat = it.itemId && inventoryMap.has(it.itemId)
-          ? inventoryMap.get(it.itemId)?.category || 'सामान्य'
-          : 'सामान्य';
+        const rawCat = it.itemId && inventoryMap.has(it.itemId)
+          ? inventoryMap.get(it.itemId)?.category || 'other'
+          : 'other';
+        const cat = getLabel(rawCat, language);
 
         if (existing) {
           existing.quantity += it.quantity;

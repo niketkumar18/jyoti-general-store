@@ -10,17 +10,21 @@ import {
   Edit3, 
   Trash2, 
   ArrowUpDown,
-  Barcode
+  Barcode,
+  Tag
 } from 'lucide-react';
 import { db } from '../../db';
-import type { InventoryItem, CategoryType } from '../../types';
+import type { InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
+import { useCategories } from '../../utils/categories';
 import { ItemFormModal } from './ItemFormModal';
 import { QuickStockAdjustModal } from './QuickStockAdjustModal';
+import { CategoryManageModal } from './CategoryManageModal';
 
 export const InventoryScreen: React.FC = () => {
   const { language, t } = useLanguage();
+  const { categories, getLabel } = useCategories();
   const items = useLiveQuery(() => db.items.toArray()) || [];
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +36,8 @@ export const InventoryScreen: React.FC = () => {
 
   const [isAdjustOpen, setIsAdjustOpen] = useState(false);
   const [itemToAdjust, setItemToAdjust] = useState<InventoryItem | null>(null);
+
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   // Filter items
   const filteredItems = items.filter((item) => {
@@ -121,10 +127,10 @@ export const InventoryScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Control Bar: Search + Category + Add Product */}
+      {/* Control Bar: Search + Category Selector + Manage Categories + Add Product */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          {/* Search */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Bar */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
@@ -136,17 +142,44 @@ export const InventoryScreen: React.FC = () => {
             />
           </div>
 
-          {/* Quick Add Button */}
-          <button
-            onClick={() => {
-              setItemToEdit(null);
-              setIsFormOpen(true);
-            }}
-            className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 whitespace-nowrap cursor-pointer transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t('add_10sec_item')}</span>
-          </button>
+          {/* Category Filter Dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 cursor-pointer focus:ring-2 focus:ring-emerald-500"
+            >
+              <option value="all">
+                {language === 'hi' ? '📂 सभी श्रेणियां (All)' : '📂 All Categories'}
+              </option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nameHi} ({c.nameEn})
+                </option>
+              ))}
+            </select>
+
+            {/* Manage Categories Button */}
+            <button
+              onClick={() => setIsCategoryModalOpen(true)}
+              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs sm:text-sm font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Layers className="w-4 h-4 text-emerald-600" />
+              <span>{language === 'hi' ? 'श्रेणियां (+ नई)' : 'Categories (+)'}</span>
+            </button>
+
+            {/* Quick Add Product Button */}
+            <button
+              onClick={() => {
+                setItemToEdit(null);
+                setIsFormOpen(true);
+              }}
+              className="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{t('add_10sec_item')}</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -187,8 +220,8 @@ export const InventoryScreen: React.FC = () => {
                       </td>
 
                       <td className="p-3 text-xs text-slate-600">
-                        <span className="bg-slate-100 px-2 py-1 rounded-md font-medium">
-                          {item.category}
+                        <span className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-2.5 py-1 rounded-lg font-semibold inline-block">
+                          {getLabel(item.category, language)}
                         </span>
                       </td>
 
@@ -223,38 +256,35 @@ export const InventoryScreen: React.FC = () => {
 
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Stock In / Out Adjustment Button */}
                           <button
                             onClick={() => {
                               setItemToAdjust(item);
                               setIsAdjustOpen(true);
                             }}
-                            className="p-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 border border-slate-200"
-                            title="स्टॉक जोड़ें या घटाएं"
+                            className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1"
+                            title={t('quick_adjust_stock')}
                           >
-                            <ArrowUpDown className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">स्टॉक</span>
+                            <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+                            <span className="hidden sm:inline">स्टॉक बदलें</span>
                           </button>
 
-                          {/* Edit Item */}
                           <button
                             onClick={() => {
                               setItemToEdit(item);
                               setIsFormOpen(true);
                             }}
-                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg"
-                            title="सुधारें"
+                            className="p-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-lg"
+                            title="संपादित करें"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Delete Item */}
                           <button
                             onClick={() => handleDeleteItem(item)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg"
+                            className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg"
                             title="हटाएं"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -263,8 +293,10 @@ export const InventoryScreen: React.FC = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="text-center py-12 text-slate-400">
-                    कोई सामान नहीं मिला।
+                  <td colSpan={6} className="text-center py-12 text-slate-400 text-sm">
+                    {searchQuery || selectedCategory !== 'all' || onlyLowStock
+                      ? 'कोई सामान फ़िल्टर से मेल नहीं खाता।'
+                      : 'कैटलॉग में कोई सामान नहीं मिला। ऊपर "नया सामान जोड़ें" पर क्लिक करें।'}
                   </td>
                 </tr>
               )}
@@ -273,24 +305,24 @@ export const InventoryScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Edit / Create Modal */}
+      {/* Item Form Modal (Add / Edit) */}
       <ItemFormModal
         isOpen={isFormOpen}
         itemToEdit={itemToEdit}
-        onClose={() => {
-          setIsFormOpen(false);
-          setItemToEdit(null);
-        }}
+        onClose={() => setIsFormOpen(false)}
       />
 
-      {/* Stock Adjust Modal */}
+      {/* Quick Stock Adjust Modal */}
       <QuickStockAdjustModal
         isOpen={isAdjustOpen}
         item={itemToAdjust}
-        onClose={() => {
-          setIsAdjustOpen(false);
-          setItemToAdjust(null);
-        }}
+        onClose={() => setIsAdjustOpen(false)}
+      />
+
+      {/* Category Manager Modal */}
+      <CategoryManageModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
       />
     </div>
   );

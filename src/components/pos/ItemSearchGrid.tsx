@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Search, Camera, Plus, AlertCircle, Sparkles } from 'lucide-react';
-import type { InventoryItem, CategoryType } from '../../types';
+import { Search, Camera, Plus, AlertCircle, Sparkles, Layers } from 'lucide-react';
+import type { InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
+import { useCategories } from '../../utils/categories';
+import { CategoryManageModal } from '../inventory/CategoryManageModal';
 
 interface ItemSearchGridProps {
   items: InventoryItem[];
@@ -18,18 +20,14 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
   onOpenQuickAddItem
 }) => {
   const { language, t } = useLanguage();
+  const { categories } = useCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
-  const categories: Array<{ id: string; labelHi: string; labelEn: string }> = [
-    { id: 'all', labelHi: 'सभी सामान', labelEn: 'All Items' },
-    { id: 'dal_pulses', labelHi: 'दाल व दलहन', labelEn: 'Dal & Pulses' },
-    { id: 'flour_grains', labelHi: 'आटा, चावल व चीनी', labelEn: 'Flour & Grains' },
-    { id: 'oil_ghee', labelHi: 'तेल व घी', labelEn: 'Oil & Ghee' },
-    { id: 'spices_masala', labelHi: 'मसाले व नमक', labelEn: 'Spices' },
-    { id: 'soap_detergent', labelHi: 'साबुन व सर्फ', labelEn: 'Soaps' },
-    { id: 'snacks_biscuit', labelHi: 'नाश्ता व बिस्कुट', labelEn: 'Snacks' },
-    { id: 'beverages', labelHi: 'चाय व पेय', labelEn: 'Beverages' }
+  const allCategoriesList = [
+    { id: 'all', nameHi: 'सभी सामान', nameEn: 'All Items' },
+    ...categories
   ];
 
   const filteredItems = items.filter((item) => {
@@ -71,7 +69,7 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
         <button
           onClick={onOpenBarcodeScanner}
           title={t('scan_barcode')}
-          className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm flex items-center justify-center transition-all active:scale-95"
+          className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm flex items-center justify-center transition-all active:scale-95 cursor-pointer"
         >
           <Camera className="w-5 h-5 text-emerald-400" />
         </button>
@@ -79,7 +77,7 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
         {/* Fast 10-Second Item Creator */}
         <button
           onClick={onOpenQuickAddItem}
-          className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap"
+          className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition-all active:scale-95 whitespace-nowrap cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">{t('quick_add_product')}</span>
@@ -87,24 +85,33 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
         </button>
       </div>
 
-      {/* Category Pills (Horizontal scroll) */}
+      {/* Category Pills (Horizontal scroll) + Add Category button */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-        {categories.map((cat) => {
+        {allCategoriesList.map((cat) => {
           const isSelected = selectedCategory === cat.id;
           return (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap transition-all select-none ${
+              className={`px-3 py-1.5 rounded-full font-semibold whitespace-nowrap transition-all select-none cursor-pointer ${
                 isSelected
                   ? 'bg-emerald-700 text-white shadow-sm'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
               }`}
             >
-              {language === 'hi' ? cat.labelHi : cat.labelEn}
+              {language === 'hi' ? cat.nameHi : cat.nameEn}
             </button>
           );
         })}
+
+        {/* Add / Manage Categories Pill */}
+        <button
+          onClick={() => setIsCategoryModalOpen(true)}
+          className="px-2.5 py-1.5 rounded-full font-bold whitespace-nowrap bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition-all flex items-center gap-1 cursor-pointer"
+        >
+          <Plus className="w-3.5 h-3.5 text-emerald-700" />
+          <span>+ श्रेणी</span>
+        </button>
       </div>
 
       {/* Product Grid */}
@@ -159,7 +166,7 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
                       {/* Standard + 1 Add button */}
                       <button
                         onClick={() => onAddToCart(item, 1)}
-                        className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-all"
+                        className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold px-3 py-1 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-all cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         <span>जोड़ें</span>
@@ -171,28 +178,28 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
                       <div className="flex items-center gap-1 pt-1 justify-between">
                         <button
                           onClick={() => onAddToCart(item, 0.25)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                           title="250 gm जोड़ें"
                         >
                           250g
                         </button>
                         <button
                           onClick={() => onAddToCart(item, 0.5)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                           title="500 gm जोड़ें"
                         >
                           500g
                         </button>
                         <button
                           onClick={() => onAddToCart(item, 2)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                           title="2 kg जोड़ें"
                         >
                           2kg
                         </button>
                         <button
                           onClick={() => onAddToCart(item, 5)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                           title="5 kg जोड़ें"
                         >
                           5kg
@@ -202,19 +209,19 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
                       <div className="flex items-center gap-1 pt-1 justify-between">
                         <button
                           onClick={() => onAddToCart(item, 2)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                         >
                           +2
                         </button>
                         <button
                           onClick={() => onAddToCart(item, 5)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                         >
                           +5
                         </button>
                         <button
                           onClick={() => onAddToCart(item, 10)}
-                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200"
+                          className="flex-1 py-0.5 bg-slate-100 hover:bg-emerald-100 text-[10px] font-bold text-slate-700 hover:text-emerald-800 rounded border border-slate-200 cursor-pointer"
                         >
                           +10
                         </button>
@@ -238,7 +245,7 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
             </p>
             <button
               onClick={onOpenQuickAddItem}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow inline-flex items-center gap-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow inline-flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>{t('quick_add_product')}</span>
@@ -246,6 +253,16 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
           </div>
         )}
       </div>
+
+      {/* Category Manager Modal */}
+      <CategoryManageModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        onCategorySelected={(newId) => {
+          setSelectedCategory(newId);
+          setIsCategoryModalOpen(false);
+        }}
+      />
     </div>
   );
 };
