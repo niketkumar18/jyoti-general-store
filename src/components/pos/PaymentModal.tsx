@@ -125,6 +125,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           updatedAt: Date.now()
         });
 
+        const itemsSummary = cart.map(c => `${c.nameHi || c.nameEn} (${c.quantity} ${c.unit})`).join(', ');
+
         // Add DEBIT ledger entry
         await db.ledger.add({
           customerId: customer.id,
@@ -134,7 +136,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           paymentMode: 'BILL',
           billId: invoiceId as number,
           invoiceNumber,
-          description: `बिल #${invoiceNumber} (सामान खरीदा)`,
+          itemsSummary,
+          items: invoiceItems,
+          description: `बिल #${invoiceNumber}: ${itemsSummary}`,
           runningBalance: newBalance,
           syncedToGoogle: false,
           createdAt: Date.now()

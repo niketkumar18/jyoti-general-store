@@ -97,6 +97,8 @@ export interface LedgerEntry {
   paymentMode?: 'CASH' | 'UPI' | 'BILL';
   billId?: number;
   invoiceNumber?: string;
+  itemsSummary?: string; // Formatted list e.g. "अरहर दाल (1 KG), तेल (1 PKT)"
+  items?: InvoiceItem[];  // Full array of items purchased
   description: string;
   runningBalance: number;
   syncedToGoogle: boolean;
