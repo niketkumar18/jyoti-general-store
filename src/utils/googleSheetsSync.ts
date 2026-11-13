@@ -14,15 +14,15 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * DEN Kirana POS - 100% Free Google Sheets Cloud Database
  * 
  * Instructions:
- * 1. Open Google Sheets (https://sheets.new)
- * 2. Go to Extensions > Apps Script
- * 3. Replace all code with this script and click Save (💾)
+ * 1. Open your Google Sheet
+ * 2. Go to Extensions (एक्सटेंशन) > Apps Script
+ * 3. Replace all existing code with this script and click Save (💾)
  * 4. Click Deploy > New deployment
  * 5. Type: "Web app" | Execute as: "Me" | Who has access: "Anyone"
- * 6. Copy the Web App URL and paste into DEN Settings!
+ * 6. Click Deploy, Authorize access, and copy the Web App URL into DEN Settings!
  * 
- * Note: No manual columns or sheets needed! This script creates
- * all 4 tabs ("Invoices", "Ledger", "Customers", "Inventory") automatically!
+ * Note: You DO NOT need to make any columns manually! This script
+ * automatically names your sheet "DEN किराना स्टोर बहीखाता" and creates 4 tabs!
  */
 
 function doGet(e) {
@@ -35,9 +35,60 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var payload = JSON.parse(e.postData.contents);
-    var action = payload.action;
+    var payload = {};
+    if (e && e.postData && e.postData.contents) {
+      payload = JSON.parse(e.postData.contents);
+    } else if (e && e.parameter && e.parameter.data) {
+      payload = JSON.parse(e.parameter.data);
+    } else if (e && e.parameter) {
+      payload = e.parameter;
+    }
+
+    var ss = null;
+    if (payload.sheetId) {
+      try { ss = SpreadsheetApp.openById(payload.sheetId); } catch(err) {}
+    }
+    if (!ss) {
+      try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
+    }
+    if (!ss) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'error',
+        error: 'No active Google Sheet found. Please ensure this script is created inside your sheet via Extensions > Apps Script.'
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Auto-rename the sheet if it is Untitled
+    try {
+      var currentName = ss.getName();
+      if (!currentName || currentName === 'Untitled spreadsheet' || currentName === 'बिना शीर्षक वाली स्प्रेडशीट') {
+        ss.setName('DEN किराना स्टोर बहीखाता (DEN Kirana Ledger)');
+      }
+    } catch(e) {}
+
+    // 0. CREATE / FORMAT DASHBOARD HOME TAB
+    try {
+      var defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('शीट1');
+      if (defaultSheet && defaultSheet.getLastRow() <= 2) {
+        defaultSheet.setName('मुख्य डैशबोर्ड (Home)');
+        defaultSheet.clear();
+        defaultSheet.getRange('A1:E1').merge()
+          .setValue('🏪 DEN किराना POS एवं डिजिटल खाता')
+          .setFontSize(16).setFontWeight('bold').setBackground('#15803D').setFontColor('#FFFFFF').setHorizontalAlignment('center');
+        defaultSheet.getRange('A3:E3').merge()
+          .setValue('📌 आपकी दुकान का सारा डेटा नीचे दिए गए 4 टैब्स में सुरक्षित है:')
+          .setFontSize(11).setFontWeight('bold');
+        defaultSheet.getRange('A5').setValue('1. 🧾 Invoices टैब:');
+        defaultSheet.getRange('B5').setValue('दुकान के सभी बिल और नकद/उधार राशि');
+        defaultSheet.getRange('A6').setValue('2. 📒 Ledger टैब:');
+        defaultSheet.getRange('B6').setValue('तारीख अनुसार ग्राहक उधारी एवं जमा का पूरा हिसाब');
+        defaultSheet.getRange('A7').setValue('3. 👥 Customers टैब:');
+        defaultSheet.getRange('B7').setValue('सभी ग्राहकों के नाम, फोन, उधारी सीमा व बकाया');
+        defaultSheet.getRange('A8').setValue('4. 📦 Inventory टैब:');
+        defaultSheet.getRange('B8').setValue('दुकान का सारा सामान, खरीद/बिक्री दर और बचा स्टॉक');
+        defaultSheet.getRange('A10').setValue('अंतिम सिंक समय: ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+      }
+    } catch(e) {}
 
     // 1. SYNC INVOICES TAB
     if (payload.invoices && payload.invoices.length > 0) {
@@ -149,10 +200,19 @@ function doPost(e) {
 }
 `;
 
+export function extractSheetId(url?: string): string | undefined {
+  if (!url) return undefined;
+  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : undefined;
+}
+
 /**
  * Syncs only pending / unsynced invoices and ledger transactions
  */
-export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<SyncResult> {
+export async function syncPendingToGoogleSheets(
+  webhookUrl: string,
+  sheetDocumentUrl?: string
+): Promise<SyncResult> {
   if (!webhookUrl || !webhookUrl.startsWith('http')) {
     return {
       success: false,
@@ -177,6 +237,7 @@ export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<Syn
 
     const payload = {
       action: 'SYNC_PENDING',
+      sheetId: extractSheetId(sheetDocumentUrl),
       invoices: unsyncedInvoices,
       ledgers: unsyncedLedgers,
       timestamp: Date.now()
@@ -185,7 +246,7 @@ export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<Syn
     await fetch(webhookUrl, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
 
@@ -217,7 +278,10 @@ export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<Syn
  * Full Sync: Sends ALL historical data (Invoices, Ledger, Customers, Inventory) to Google Sheets
  * This allows the user to immediately verify their Google Sheet with live data!
  */
-export async function syncFullDatabaseToGoogleSheets(webhookUrl: string): Promise<SyncResult> {
+export async function syncFullDatabaseToGoogleSheets(
+  webhookUrl: string,
+  sheetDocumentUrl?: string
+): Promise<SyncResult> {
   if (!webhookUrl || !webhookUrl.startsWith('http')) {
     return {
       success: false,
@@ -235,6 +299,7 @@ export async function syncFullDatabaseToGoogleSheets(webhookUrl: string): Promis
 
     const payload = {
       action: 'SYNC_FULL',
+      sheetId: extractSheetId(sheetDocumentUrl),
       invoices: allInvoices,
       ledgers: allLedgers,
       customers: allCustomers,
@@ -245,11 +310,10 @@ export async function syncFullDatabaseToGoogleSheets(webhookUrl: string): Promis
     await fetch(webhookUrl, {
       method: 'POST',
       mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
 
-    // Mark all as synced
     for (const inv of allInvoices) {
       if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
     }

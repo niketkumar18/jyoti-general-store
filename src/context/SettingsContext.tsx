@@ -53,7 +53,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setIsSyncing(true);
     try {
-      const res = await syncPendingToGoogleSheets(settings.googleSheetsUrl);
+      const res = await syncPendingToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
       if (res.success) {
         await updateSettings({ lastSyncedAt: Date.now() });
       }
@@ -71,7 +71,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     setIsSyncing(true);
     try {
-      const res = await syncFullDatabaseToGoogleSheets(settings.googleSheetsUrl);
+      const res = await syncFullDatabaseToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
       if (res.success) {
         await updateSettings({ lastSyncedAt: Date.now() });
       }

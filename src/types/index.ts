@@ -115,7 +115,8 @@ export interface ShopSettings {
   defaultCreditLimit: number;
   thermalPaperWidth: '58mm' | '80mm';
   enableSound: boolean;
-  googleSheetsUrl?: string; // Google Apps Script web app endpoint
+  googleSheetsUrl?: string; // Google Apps Script web app endpoint (e.g. https://script.google.com/macros/s/.../exec)
+  googleSheetDocumentUrl?: string; // Direct spreadsheet link (e.g. https://docs.google.com/spreadsheets/d/.../edit)
   autoSync: boolean;
   lastSyncedAt?: number;
 }

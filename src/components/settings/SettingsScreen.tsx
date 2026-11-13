@@ -349,6 +349,47 @@ export const SettingsScreen: React.FC = () => {
             </div>
           </div>
 
+          {/* Direct Sheet Document Link Input */}
+          <div className="space-y-1.5 pt-2 border-t border-emerald-200/60">
+            <label className="block text-xs font-bold text-emerald-950 flex items-center justify-between">
+              <span>आपकी Google Sheet का सीधा लिंक (Spreadsheet URL):</span>
+              <span className="text-[10px] text-slate-500 font-normal hidden sm:inline">उदा. https://docs.google.com/spreadsheets/d/.../edit</span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="url"
+                value={formData.googleSheetDocumentUrl || ''}
+                onChange={(e) => setFormData({ ...formData, googleSheetDocumentUrl: e.target.value })}
+                placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                className="flex-1 px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-emerald-500 shadow-xs"
+              />
+              {formData.googleSheetDocumentUrl ? (
+                <a
+                  href={formData.googleSheetDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>अपनी शीट सीधे खोलें</span>
+                </a>
+              ) : (
+                <a
+                  href="https://sheets.google.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Google Sheets खोलें</span>
+                </a>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500">
+              अपनी स्प्रेडशीट का URL यहाँ पेस्ट करने से "अपनी शीट सीधे खोलें" बटन हमेशा सीधे आपकी फ़ाइल खोलेगा (होम पेज नहीं)।
+            </p>
+          </div>
+
           {/* Webhook URL Input */}
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-emerald-950">
@@ -405,7 +446,7 @@ export const SettingsScreen: React.FC = () => {
                 <span>{testSyncMsg}</span>
               </div>
               <a
-                href="https://sheets.google.com"
+                href={formData.googleSheetDocumentUrl || 'https://sheets.google.com'}
                 target="_blank"
                 rel="noreferrer"
                 className="text-emerald-800 underline font-bold shrink-0 flex items-center gap-1 hover:text-emerald-950"
