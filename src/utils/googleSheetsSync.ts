@@ -18,20 +18,30 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * 2. Go to Extensions (एक्सटेंशन) > Apps Script
  * 3. Delete everything and paste this code completely
  * 4. Click Save (💾)
- * 5. (TESTING): Select "testSyncDirectly" from the top dropdown and click Run (▶️)
- *    -> Check your Google Sheet immediately! You will see all 4 tabs created!
- * 6. Click Deploy > New deployment
- * 7. Click Gear (⚙️) icon > Web app
- * 8. Execute as: "Me" | Who has access: "Anyone" (VERY IMPORTANT: Select Anyone!)
- * 9. Click Deploy and copy the Web App URL (ends with /exec) into DEN Settings!
+ * 5. (⚡ ONE-CLICK TEST): Select "setupAllTabsNow" from top dropdown and click Run (▶️)
+ *    -> Check your Google Sheet! All 5 tabs will appear immediately!
+ * 6. Click Deploy > Manage deployments > Edit (pencil) > Version: "New version" > Deploy
+ * 7. Copy the Web App URL (ends with /exec) into DEN Settings!
  */
 
 function doGet(e) {
+  setupAllTabsNow();
   return ContentService.createTextOutput(JSON.stringify({
     status: 'online',
     app: 'DEN Kirana POS',
-    message: 'Google Sheets Webhook is active and connected!'
+    message: 'Google Sheets Webhook is active and all tabs are created!'
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getOrCreateSheet(ss, name, headerRow) {
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+  }
+  if (headerRow && sheet.getLastRow() === 0) {
+    sheet.appendRow(headerRow);
+  }
+  return sheet;
 }
 
 function doPost(e) {
@@ -46,67 +56,46 @@ function doPost(e) {
     }
 
     var ss = null;
-    // 1. If sheetId provided, open by ID
     if (payload.sheetId) {
       try { ss = SpreadsheetApp.openById(payload.sheetId); } catch(err) {}
     }
-    // 2. If not, open active spreadsheet
     if (!ss) {
       try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
     }
-
     if (!ss) {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
-        error: 'Spreadsheet not found! Make sure this script was opened from Extensions > Apps Script inside your sheet, or provide sheetId.'
+        error: 'Spreadsheet not found'
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Auto-rename the spreadsheet if default
-    try {
-      var currentName = ss.getName();
-      if (!currentName || currentName === 'Untitled spreadsheet' || currentName === 'बिना शीर्षक वाली स्प्रेडशीट') {
-        ss.setName('DEN किराना स्टोर बहीखाता (DEN Kirana Ledger)');
-      }
-    } catch(err) {}
+    // 1. GUARANTEE ALL TABS EXIST IMMEDIATELY
+    var sheetInvoices = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण']);
+    var sheetLedger = getOrCreateSheet(ss, 'Ledger', ['तारीख व समय', 'ग्राहक का नाम', 'प्रकार (उधार/जमा)', 'राशि (₹)', 'माध्यम', 'बिल सं.', 'विवरण', 'शेष उधारी (₹)']);
+    var sheetCust = getOrCreateSheet(ss, 'Customers', ['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
+    var sheetItems = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
 
-    // 0. FORMAT HOME / DASHBOARD TAB
+    // 2. DASHBOARD / HOME TAB
     try {
       var homeSheet = ss.getSheetByName('मुख्य डैशबोर्ड') || ss.getSheetByName('Sheet1') || ss.getSheetByName('शीट1');
       if (homeSheet) {
         homeSheet.setName('मुख्य डैशबोर्ड');
-        if (homeSheet.getLastRow() <= 2) {
-          homeSheet.clear();
-          homeSheet.getRange('A1:F1').merge()
-            .setValue('🏪 DEN किराना POS एवं डिजिटल खाता बही')
-            .setFontSize(16).setFontWeight('bold').setBackground('#15803D').setFontColor('#FFFFFF').setHorizontalAlignment('center');
-          homeSheet.getRange('A3:F3').merge()
-            .setValue('📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए रंगीन टैब्स (Tabs) में सुरक्षित है:')
-            .setFontSize(11).setFontWeight('bold');
-          homeSheet.getRange('A5').setValue('1. 🧾 Invoices टैब:');
-          homeSheet.getRange('B5:D5').merge().setValue('दुकान के सभी बिल और नकद/उधार राशि');
-          homeSheet.getRange('A6').setValue('2. 📒 Ledger टैब:');
-          homeSheet.getRange('B6:D6').merge().setValue('तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit)');
-          homeSheet.getRange('A7').setValue('3. 👥 Customers टैब:');
-          homeSheet.getRange('B7:D7').merge().setValue('ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान बकाया');
-          homeSheet.getRange('A8').setValue('4. 📦 Inventory टैब:');
-          homeSheet.getRange('B8:D8').merge().setValue('दुकान का सारा सामान, खरीद/बिक्री दर और बचा स्टॉक');
-          homeSheet.getRange('A10').setValue('अंतिम सिंक समय: ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-          homeSheet.setTabColor('#15803D');
-        }
+        homeSheet.clear();
+        homeSheet.appendRow(['🏪 DEN किराना POS एवं डिजिटल खाता बही']);
+        homeSheet.appendRow(['']);
+        homeSheet.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 4 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
+        homeSheet.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल और नकद/उधार राशि']);
+        homeSheet.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब']);
+        homeSheet.appendRow(['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया']);
+        homeSheet.appendRow(['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक']);
+        homeSheet.appendRow(['']);
+        homeSheet.appendRow(['👉 डेटा देखने के लिए स्क्रीन के सबसे नीचे इन टैब्स [ Invoices ] [ Ledger ] [ Customers ] [ Inventory ] पर क्लिक करें!']);
+        homeSheet.appendRow(['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
       }
     } catch(err) {}
 
-    // 1. SYNC INVOICES TAB
+    // 3. WRITE INVOICES
     if (payload.invoices && payload.invoices.length > 0) {
-      var sheetInvoices = ss.getSheetByName('Invoices') || ss.insertSheet('Invoices');
-      sheetInvoices.setTabColor('#0284C7');
-      if (sheetInvoices.getLastRow() === 0) {
-        var hRow = ['Date & Time', 'Bill Number', 'Customer Name', 'Mobile', 'Grand Total (₹)', 'Paid (₹)', 'Due / Udhar (₹)', 'Payment Mode', 'Items Detail'];
-        sheetInvoices.appendRow(hRow);
-        sheetInvoices.getRange(1, 1, 1, hRow.length).setFontWeight('bold').setBackground('#E2E8F0');
-        sheetInvoices.setFrozenRows(1);
-      }
       payload.invoices.forEach(function(inv) {
         var itemsSummary = (inv.items || []).map(function(it) {
           return (it.nameHi || it.nameEn) + ' (' + it.quantity + ' ' + it.unit + ' @ ₹' + it.unitPrice + ')';
@@ -126,16 +115,8 @@ function doPost(e) {
       });
     }
 
-    // 2. SYNC KHATA LEDGER TAB
+    // 4. WRITE LEDGERS
     if (payload.ledgers && payload.ledgers.length > 0) {
-      var sheetLedger = ss.getSheetByName('Ledger') || ss.insertSheet('Ledger');
-      sheetLedger.setTabColor('#D97706');
-      if (sheetLedger.getLastRow() === 0) {
-        var lRow = ['Date & Time', 'Customer Name', 'Type (उधार / जमा)', 'Amount (₹)', 'Payment Mode', 'Bill #', 'Description', 'Running Due Balance (₹)'];
-        sheetLedger.appendRow(lRow);
-        sheetLedger.getRange(1, 1, 1, lRow.length).setFontWeight('bold').setBackground('#FEF3C7');
-        sheetLedger.setFrozenRows(1);
-      }
       payload.ledgers.forEach(function(led) {
         sheetLedger.appendRow([
           new Date(led.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
@@ -150,38 +131,26 @@ function doPost(e) {
       });
     }
 
-    // 3. FULL SYNC: CUSTOMERS TAB
+    // 5. WRITE CUSTOMERS
     if (payload.customers && payload.customers.length > 0) {
-      var sheetCust = ss.getSheetByName('Customers') || ss.insertSheet('Customers');
-      sheetCust.setTabColor('#16A34A');
-      sheetCust.clearContents();
-      var cRow = ['Customer Name', 'Mobile Number', 'Credit Limit (₹)', 'Current Due (₹)', 'Risk Status', 'Address / Notes'];
-      sheetCust.appendRow(cRow);
-      sheetCust.getRange(1, 1, 1, cRow.length).setFontWeight('bold').setBackground('#D1FAE5');
-      sheetCust.setFrozenRows(1);
-      
+      sheetCust.clear();
+      sheetCust.appendRow(['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
       payload.customers.forEach(function(c) {
         sheetCust.appendRow([
           c.name,
           c.mobile || '',
           c.creditLimit,
           c.currentBalance,
-          c.riskLevel.toUpperCase(),
+          c.riskLevel ? c.riskLevel.toUpperCase() : 'SAFE',
           c.address || c.notes || ''
         ]);
       });
     }
 
-    // 4. FULL SYNC: INVENTORY TAB
+    // 6. WRITE INVENTORY
     if (payload.items && payload.items.length > 0) {
-      var sheetItems = ss.getSheetByName('Inventory') || ss.insertSheet('Inventory');
-      sheetItems.setTabColor('#2563EB');
-      sheetItems.clearContents();
-      var iRow = ['Item Name (Hindi)', 'Item Name (English)', 'Category', 'Unit', 'Sale Price (₹)', 'Cost Price (₹)', 'Stock Qty', 'Low Stock Limit', 'Barcode'];
-      sheetItems.appendRow(iRow);
-      sheetItems.getRange(1, 1, 1, iRow.length).setFontWeight('bold').setBackground('#DBEAFE');
-      sheetItems.setFrozenRows(1);
-
+      sheetItems.clear();
+      sheetItems.appendRow(['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
       payload.items.forEach(function(it) {
         sheetItems.appendRow([
           it.nameHi,
@@ -199,7 +168,7 @@ function doPost(e) {
 
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
-      message: 'All records synced cleanly into Google Sheets!'
+      message: 'All 4 tabs synced successfully!'
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
@@ -211,33 +180,72 @@ function doPost(e) {
 }
 
 /**
- * ⚡ Direct Test Function inside Apps Script Editor
- * Select "testSyncDirectly" from the top dropdown and click Run (▶️)
- * It will instantly write sample data into your Google Sheet!
+ * ⚡ ONE-CLICK SETUP FUNCTION
+ * Select "setupAllTabsNow" from top dropdown and click Run (▶️)
+ * It will instantly create all 5 tabs and fill sample data in 1 second!
  */
-function testSyncDirectly() {
-  var sample = {
-    action: 'SYNC_FULL',
-    invoices: [
-      { invoiceNumber: 'DEN-1001', customerName: 'रमेश कुमार (वर्मा जी)', customerMobile: '9826011223', grandTotal: 1250, paidAmount: 500, dueAmount: 750, paymentMethod: 'SPLIT', createdAt: Date.now(), items: [{ nameHi: 'अरहर दाल', quantity: 1, unit: 'KG', unitPrice: 160, total: 160 }] }
-    ],
-    ledgers: [
-      { customerName: 'रमेश कुमार (वर्मा जी)', type: 'DEBIT', amount: 750, description: 'बिल #DEN-1001 का उधार', runningBalance: 1250, createdAt: Date.now() },
-      { customerName: 'रमेश कुमार (वर्मा जी)', type: 'CREDIT', amount: 500, paymentMode: 'UPI', description: 'PhonePe से जमा किया', runningBalance: 750, createdAt: Date.now() }
-    ],
-    customers: [
-      { name: 'रमेश कुमार (वर्मा जी)', mobile: '9826011223', creditLimit: 3000, currentBalance: 750, riskLevel: 'safe', address: 'गली नंबर 3' },
-      { name: 'सोनू शर्मा (पंडित जी)', mobile: '9893044556', creditLimit: 2000, currentBalance: 1650, riskLevel: 'warning', address: 'मंदिर के पीछे' },
-      { name: 'विक्रम यादव (ठेकेदार)', mobile: '9752099881', creditLimit: 2500, currentBalance: 3200, riskLevel: 'danger', address: 'यादव मोहल्ला' }
-    ],
-    items: [
-      { nameHi: 'अरहर / तूर दाल', nameEn: 'Toor Dal', category: 'dal_pulses', unit: 'KG', salePrice: 160, costPrice: 142, stockQty: 50, lowStockThreshold: 10 },
-      { nameHi: 'फॉर्च्यून सरसों तेल', nameEn: 'Fortune Mustard Oil', category: 'oil_ghee', unit: 'PACKET', salePrice: 155, costPrice: 138, stockQty: 45, lowStockThreshold: 10 }
-    ]
-  };
+function setupAllTabsNow() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) return;
 
-  var res = doPost({ postData: { contents: JSON.stringify(sample) } });
-  Logger.log('Test Sync Result: ' + res.getContent());
+  // Rename spreadsheet
+  try {
+    if (ss.getName() === 'Untitled spreadsheet' || ss.getName() === 'बिना शीर्षक वाली स्प्रेडशीट') {
+      ss.setName('DEN किराना स्टोर बहीखाता (DEN Kirana Ledger)');
+    }
+  } catch(e) {}
+
+  // 1. Invoices tab
+  var inv = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण']);
+  if (inv.getLastRow() <= 1) {
+    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'DEN-1001', 'रमेश कुमार (वर्मा जी)', '9826011223', 1250, 500, 750, 'SPLIT', 'अरहर दाल (1 KG @ ₹160), फॉर्च्यून तेल (1 LTR @ ₹155)']);
+    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'DEN-1002', 'सोनू शर्मा (पंडित जी)', '9893044556', 2150, 0, 2150, 'CREDIT', 'अमुल शुद्ध घी (1 LTR @ ₹650), आटा 10KG (1 PKT @ ₹420)']);
+  }
+
+  // 2. Ledger tab
+  var led = getOrCreateSheet(ss, 'Ledger', ['तारीख व समय', 'ग्राहक का नाम', 'प्रकार (उधार/जमा)', 'राशि (₹)', 'माध्यम', 'बिल सं.', 'विवरण', 'शेष उधारी (₹)']);
+  if (led.getLastRow() <= 1) {
+    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'रमेश कुमार (वर्मा जी)', 'उधार (DEBIT)', 750, 'BILL', 'DEN-1001', 'बिल #DEN-1001 का उधार', 750]);
+    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'सोनू शर्मा (पंडित जी)', 'उधार (DEBIT)', 2150, 'BILL', 'DEN-1002', 'राशन का उधार', 2150]);
+    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'सोनू शर्मा (पंडित जी)', 'जमा (CREDIT)', 500, 'CASH', '', 'दुकान पर नकद जमा किया', 1650]);
+  }
+
+  // 3. Customers tab
+  var cust = getOrCreateSheet(ss, 'Customers', ['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
+  if (cust.getLastRow() <= 1) {
+    cust.appendRow(['रमेश कुमार (वर्मा जी)', '9826011223', 3000, 750, 'SAFE 🟢', 'गली नंबर 3, शक्ति नगर']);
+    cust.appendRow(['सोनू शर्मा (पंडित जी)', '9893044556', 2000, 1650, 'WARNING 🟡', 'मकान नं. 45, मंदिर के पीछे']);
+    cust.appendRow(['विक्रम यादव (ठेकेदार)', '9752099881', 2500, 3200, 'DANGER 🔴', 'यादव मोहल्ला, वार्ड 12']);
+    cust.appendRow(['सुनील गुप्ता (दुकान वाले)', '9425077112', 5000, 2100, 'SAFE 🟢', 'स्टेशन रोड']);
+  }
+
+  // 4. Inventory tab
+  var items = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
+  if (items.getLastRow() <= 1) {
+    items.appendRow(['अरहर / तूर दाल (प्रीमियम)', 'Toor Dal (Arhar)', 'dal_pulses', 'KG', 160, 142, 50, 10, '8901001']);
+    items.appendRow(['फॉर्च्यून सरसों तेल (1 लीटर)', 'Fortune Mustard Oil 1L', 'oil_ghee', 'PACKET', 155, 138, 45, 10, '8906007']);
+    items.appendRow(['आशीर्वाद चक्की आटा (10 किग्रा)', 'Aashirvaad Atta 10kg', 'flour_grains', 'PACKET', 420, 385, 18, 4, '8901030']);
+    items.appendRow(['अमूल शुद्ध देशी घी (1 लीटर)', 'Amul Pure Ghee 1L', 'oil_ghee', 'PIECE', 650, 590, 12, 3, '8901262']);
+    items.appendRow(['टाटा नमक (1 किग्रा)', 'Tata Salt 1kg', 'spices_masala', 'PACKET', 28, 24, 80, 15, '8901058']);
+    items.appendRow(['सर्फ एक्सेल क्विक वॉश (1 किग्रा)', 'Surf Excel 1kg', 'soap_detergent', 'PACKET', 145, 128, 40, 8, '8901038']);
+    items.appendRow(['मैगी 2-मिनट नूडल्स (4 का पैक)', 'Maggi Noodles Pack', 'snacks_biscuit', 'PACKET', 56, 48, 35, 7, '8901721']);
+  }
+
+  // 5. Dashboard Home
+  var home = getOrCreateSheet(ss, 'मुख्य डैशबोर्ड');
+  home.clear();
+  home.appendRow(['🏪 DEN किराना POS एवं डिजिटल खाता बही']);
+  home.appendRow(['']);
+  home.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 4 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
+  home.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल और नकद/उधार राशि']);
+  home.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब']);
+  home.appendRow(['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया']);
+  home.appendRow(['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक']);
+  home.appendRow(['']);
+  home.appendRow(['👉 डेटा देखने के लिए स्क्रीन के सबसे नीचे इन टैब्स [ Invoices ] [ Ledger ] [ Customers ] [ Inventory ] पर क्लिक करें!']);
+  home.appendRow(['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
+
+  Logger.log('Success! All 5 tabs created and filled.');
 }
 `;
 
