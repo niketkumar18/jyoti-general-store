@@ -11,6 +11,7 @@ import { BarcodeScannerModal } from '../common/BarcodeScannerModal';
 import { InvoiceViewModal } from '../bill/InvoiceViewModal';
 import { ItemFormModal } from '../inventory/ItemFormModal';
 import { playBeepSound } from '../../utils/audio';
+import { calculateItemPricing } from '../../utils/pricing';
 
 export const PosScreen: React.FC = () => {
   const items = useLiveQuery(() => db.items.toArray()) || [];
@@ -50,13 +51,27 @@ export const PosScreen: React.FC = () => {
       if (existingIndex > -1) {
         const copy = [...prev];
         const newQty = Number((copy[existingIndex].quantity + qty).toFixed(2));
+        const pricing = calculateItemPricing(
+          copy[existingIndex].salePrice,
+          newQty,
+          copy[existingIndex].bulkDiscountThreshold,
+          copy[existingIndex].bulkDiscountPercentage
+        );
         copy[existingIndex] = {
           ...copy[existingIndex],
           quantity: newQty,
-          total: Number((newQty * copy[existingIndex].salePrice).toFixed(2))
+          effectivePrice: pricing.effectiveUnitPrice,
+          isBulkDiscountApplied: pricing.isBulkApplied,
+          total: pricing.total
         };
         return copy;
       } else {
+        const pricing = calculateItemPricing(
+          item.salePrice,
+          qty,
+          item.bulkDiscountThreshold,
+          item.bulkDiscountPercentage
+        );
         return [
           ...prev,
           {
@@ -67,7 +82,11 @@ export const PosScreen: React.FC = () => {
             quantity: qty,
             salePrice: item.salePrice,
             costPrice: item.costPrice,
-            total: Number((qty * item.salePrice).toFixed(2))
+            bulkDiscountThreshold: item.bulkDiscountThreshold,
+            bulkDiscountPercentage: item.bulkDiscountPercentage,
+            effectivePrice: pricing.effectiveUnitPrice,
+            isBulkDiscountApplied: pricing.isBulkApplied,
+            total: pricing.total
           }
         ];
       }
@@ -78,10 +97,18 @@ export const PosScreen: React.FC = () => {
     setCart((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
+          const pricing = calculateItemPricing(
+            item.salePrice,
+            newQty,
+            item.bulkDiscountThreshold,
+            item.bulkDiscountPercentage
+          );
           return {
             ...item,
             quantity: newQty,
-            total: Number((newQty * item.salePrice).toFixed(2))
+            effectivePrice: pricing.effectiveUnitPrice,
+            isBulkDiscountApplied: pricing.isBulkApplied,
+            total: pricing.total
           };
         }
         return item;
@@ -93,10 +120,18 @@ export const PosScreen: React.FC = () => {
     setCart((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
+          const pricing = calculateItemPricing(
+            newPrice,
+            item.quantity,
+            item.bulkDiscountThreshold,
+            item.bulkDiscountPercentage
+          );
           return {
             ...item,
             salePrice: newPrice,
-            total: Number((item.quantity * newPrice).toFixed(2))
+            effectivePrice: pricing.effectiveUnitPrice,
+            isBulkDiscountApplied: pricing.isBulkApplied,
+            total: pricing.total
           };
         }
         return item;

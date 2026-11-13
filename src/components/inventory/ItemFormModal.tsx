@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Package, Save, Plus, Layers } from 'lucide-react';
+import { X, Sparkles, Package, Save, Plus, Layers, Tag } from 'lucide-react';
 import type { InventoryItem, UnitType, CategoryType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { db } from '../../db';
@@ -32,6 +32,11 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(5);
   const [barcode, setBarcode] = useState('');
 
+  // Bulk / Quantity Discount Rule
+  const [enableBulkRule, setEnableBulkRule] = useState(false);
+  const [bulkThreshold, setBulkThreshold] = useState<number | ''>('');
+  const [bulkPercentage, setBulkPercentage] = useState<number | ''>('');
+
   // Category management modals & inline quick add
   const [showManageCategories, setShowManageCategories] = useState(false);
   const [showInlineAddCategory, setShowInlineAddCategory] = useState(false);
@@ -49,6 +54,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setStockQty(itemToEdit.stockQty);
       setLowStockThreshold(itemToEdit.lowStockThreshold);
       setBarcode(itemToEdit.barcode || '');
+      setBulkThreshold(itemToEdit.bulkDiscountThreshold ?? '');
+      setBulkPercentage(itemToEdit.bulkDiscountPercentage ?? '');
+      setEnableBulkRule(Boolean(itemToEdit.bulkDiscountThreshold && itemToEdit.bulkDiscountPercentage));
     } else {
       setNameEn('');
       setNameHi('');
@@ -59,6 +67,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setStockQty(10);
       setLowStockThreshold(5);
       setBarcode('');
+      setBulkThreshold('');
+      setBulkPercentage('');
+      setEnableBulkRule(false);
     }
     setShowInlineAddCategory(false);
     setNewCatNameHi('');
@@ -93,6 +104,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       return;
     }
 
+    const thresholdVal = enableBulkRule && typeof bulkThreshold === 'number' && bulkThreshold > 1 ? bulkThreshold : undefined;
+    const percentageVal = enableBulkRule && typeof bulkPercentage === 'number' && bulkPercentage > 0 ? bulkPercentage : undefined;
+
     const payload: Omit<InventoryItem, 'id'> = {
       nameEn: nameEn.trim() || nameHi.trim(),
       nameHi: nameHi.trim() || nameEn.trim(),
@@ -103,6 +117,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       stockQty: Number(stockQty) || 0,
       lowStockThreshold: Number(lowStockThreshold) || 5,
       barcode: barcode.trim() || undefined,
+      bulkDiscountThreshold: thresholdVal,
+      bulkDiscountPercentage: percentageVal,
       createdAt: itemToEdit?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -329,6 +345,123 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 </div>
                 <p className="text-[10px] text-slate-500 mt-0.5">थोक खरीद मूल्य (मुनाफे हेतु)</p>
               </div>
+            </div>
+
+            {/* Bulk / Quantity Discount Rule */}
+            <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 sm:p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-amber-700" />
+                  <span className="text-xs sm:text-sm font-black text-amber-950">
+                    📦 थोक / मात्रा छूट नियम (Quantity Discount Rule)
+                  </span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={enableBulkRule}
+                    onChange={(e) => setEnableBulkRule(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-600"></div>
+                </label>
+              </div>
+
+              <p className="text-[11px] text-amber-800">
+                यदि ग्राहक तय मात्रा या उससे अधिक खरीदे, तो दर में स्वतः प्रतिशत छूट लागू हो जाएगी। (जैसे 1 पर ₹20, लेकिन 5 पर 20% छूट = ₹16/पीस)
+              </p>
+
+              {enableBulkRule && (
+                <div className="space-y-3 pt-1 border-t border-amber-200/60 animate-in fade-in">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                        न्यूनतम मात्रा सीमा (Threshold Qty) *
+                      </label>
+                      <input
+                        type="number"
+                        min="2"
+                        value={bulkThreshold}
+                        onChange={(e) =>
+                          setBulkThreshold(
+                            e.target.value === '' ? '' : Math.max(2, parseInt(e.target.value) || 2)
+                          )
+                        }
+                        placeholder="उदा. 5"
+                        className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                      />
+                      <span className="text-[10px] text-amber-700 mt-0.5 block">
+                        उदा. 5 (5 या अधिक लेने पर)
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                        छूट प्रतिशत (Discount %) *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          value={bulkPercentage}
+                          onChange={(e) =>
+                            setBulkPercentage(
+                              e.target.value === ''
+                                ? ''
+                                : Math.min(99, Math.max(1, parseFloat(e.target.value) || 0))
+                            )
+                          }
+                          placeholder="उदा. 20"
+                          className="w-full pr-8 pl-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                        />
+                        <span className="absolute right-3 top-2 text-slate-500 text-sm font-bold">%</span>
+                      </div>
+                      <span className="text-[10px] text-amber-700 mt-0.5 block">
+                        उदा. 20% कम
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset Quick Chips */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] font-semibold text-amber-900 py-0.5">त्वरित विकल्प:</span>
+                    {[
+                      { qty: 5, pct: 10, label: '5+ पर 10%' },
+                      { qty: 5, pct: 20, label: '5+ पर 20%' },
+                      { qty: 10, pct: 15, label: '10+ पर 15%' },
+                      { qty: 12, pct: 10, label: '12+ पर 10%' }
+                    ].map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setBulkThreshold(p.qty);
+                          setBulkPercentage(p.pct);
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md border border-amber-300 transition-colors cursor-pointer"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Dynamic Example Preview */}
+                  {salePrice > 0 && Number(bulkThreshold) > 1 && Number(bulkPercentage) > 0 && (
+                    <div className="bg-white rounded-xl p-2.5 border border-amber-300/80 text-xs text-amber-950 font-medium space-y-1">
+                      <div className="font-bold text-amber-900 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>लाइव नियम प्रीव्यू (Live Rule Preview):</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        • 1 से {Number(bulkThreshold) - 1} {unit} तक: <strong>₹{salePrice}</strong> प्रति {unit} (सामान्य दर)
+                        <br />
+                        • <strong>{bulkThreshold} या अधिक {unit}</strong> पर: <strong>₹{(salePrice * (1 - Number(bulkPercentage) / 100)).toFixed(2)}</strong> प्रति {unit} ({bulkPercentage}% छूट! बचत: ₹{(salePrice * (Number(bulkPercentage) / 100)).toFixed(2)}/{unit})
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Stock Quantity & Low Stock Threshold */}

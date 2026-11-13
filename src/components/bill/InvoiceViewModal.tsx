@@ -109,9 +109,14 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
 
               {invoice.items.map((item, idx) => (
                 <div key={idx} className="flex justify-between items-center text-[11px]">
-                  <span className="w-1/2 truncate font-medium">
-                    {item.nameHi || item.nameEn}
-                  </span>
+                  <div className="w-1/2 truncate font-medium">
+                    <div>{item.nameHi || item.nameEn}</div>
+                    {item.discountPercentage ? (
+                      <span className="text-[9px] text-amber-700 font-bold block">
+                        ({item.discountPercentage}% थोक छूट @ ₹{item.unitPrice})
+                      </span>
+                    ) : null}
+                  </div>
                   <span className="w-1/4 text-center text-slate-600">
                     {item.quantity} {item.unit}
                   </span>

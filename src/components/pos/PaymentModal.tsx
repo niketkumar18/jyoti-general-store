@@ -9,7 +9,9 @@ import {
   CheckCircle2, 
   X, 
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Copy,
+  Check
 } from 'lucide-react';
 import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -51,6 +53,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [cashTendered, setCashTendered] = useState<number>(grandTotal);
   const [splitPaidAmount, setSplitPaidAmount] = useState<number>(Math.floor(grandTotal / 2));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showUploadedQr, setShowUploadedQr] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
 
   if (!isOpen) return null;
 
@@ -88,7 +92,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         nameHi: c.nameHi,
         unit: c.unit,
         quantity: c.quantity,
-        unitPrice: c.salePrice,
+        unitPrice: c.effectivePrice || c.salePrice,
+        originalPrice: c.salePrice,
+        discountPercentage: c.isBulkDiscountApplied ? c.bulkDiscountPercentage : undefined,
         costPrice: c.costPrice,
         total: c.total
       }));
@@ -386,19 +392,76 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
           {paymentMethod === 'UPI' && (
             <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex flex-col items-center text-center space-y-3">
+              {/* Toggle if merchant uploaded a custom QR image */}
+              {settings.qrCodeImageUrl && (
+                <div className="flex bg-slate-200 p-1 rounded-xl text-xs font-bold gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadedQr(false)}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      !showUploadedQr
+                        ? 'bg-white text-emerald-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    ⚡ बिल राशि QR ({formatCurrency(grandTotal)})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowUploadedQr(true)}
+                    className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                      showUploadedQr
+                        ? 'bg-white text-emerald-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    📷 दुकान का QR स्टेंडी
+                  </button>
+                </div>
+              )}
+
               <div className="p-3 bg-white rounded-2xl shadow-md border border-slate-200">
-                <QRCodeSVG
-                  value={upiPayUrl}
-                  size={160}
-                  level="M"
-                  includeMargin={true}
-                />
+                {showUploadedQr && settings.qrCodeImageUrl ? (
+                  <img
+                    src={settings.qrCodeImageUrl}
+                    alt="दुकान का QR कोड"
+                    className="w-48 h-48 object-contain rounded-xl"
+                  />
+                ) : (
+                  <QRCodeSVG
+                    value={upiPayUrl}
+                    size={160}
+                    level="M"
+                    includeMargin={true}
+                  />
+                )}
               </div>
-              <div>
-                <p className="text-xs text-slate-500 font-medium">
-                  दुकान की UPI ID: <strong className="text-slate-800 font-mono">{shopUpi}</strong>
-                </p>
-                <p className="text-xs text-emerald-700 font-bold mt-0.5">
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-slate-600">
+                  <span>दुकान की UPI ID:</span>
+                  <strong className="text-slate-900 font-mono bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    {shopUpi}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(shopUpi);
+                      setCopiedUpi(true);
+                      setTimeout(() => setCopiedUpi(false), 2000);
+                    }}
+                    className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
+                    title="कॉपी करें"
+                  >
+                    {copiedUpi ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+
+                <p className="text-xs text-emerald-700 font-bold mt-1">
                   ग्राहक से कहें कि किसी भी UPI ऐप (GPay, PhonePe, Paytm) से स्कैन कर {formatCurrency(grandTotal)} का भुगतान करें।
                 </p>
               </div>

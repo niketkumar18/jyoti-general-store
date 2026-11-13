@@ -18,8 +18,11 @@ import {
   Table,
   CheckCircle2,
   FileSpreadsheet,
-  Zap
+  Zap,
+  Camera,
+  Trash2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 import { GOOGLE_APPS_SCRIPT_TEMPLATE, validateWebhookUrl } from '../../utils/googleSheetsSync';
@@ -262,22 +265,94 @@ export const SettingsScreen: React.FC = () => {
             <span>UPI QR कोड एवं रसीद प्रिंटर</span>
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                {t('upi_id')} *
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.upiId}
-                onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
-                placeholder="उदा. 9876543210@paytm या shop@okhdfcbank"
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
-              />
-              <p className="text-[11px] text-slate-500 mt-1">
-                {t('upi_id_hint')} (बिलिंग स्क्रीन पर इसी से डायनामिक QR कोड बनेगा)
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {t('upi_id')} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.upiId}
+                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                  placeholder="उदा. 9876543210@paytm या shop@okhdfcbank"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {t('upi_id_hint')} (बिलिंग स्क्रीन पर इसी से डायनामिक QR कोड बनेगा)
+                </p>
+              </div>
+
+              {/* Custom QR Code Image Upload */}
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span>दुकान का QR कोड / स्टेंडी फोटो (Upload Standee)</span>
+                  </label>
+                  {formData.qrCodeImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, qrCodeImageUrl: undefined })}
+                      className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>हटाएं</span>
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        if (event.target?.result) {
+                          setFormData({
+                            ...formData,
+                            qrCodeImageUrl: event.target.result as string
+                          });
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
+                />
+                <p className="text-[10px] text-slate-400">
+                  यदि आपके पास PhonePe / Google Pay / Paytm का QR कोड या स्टेंडी फोटो है, तो उसे यहाँ अपलोड करें।
+                </p>
+              </div>
+            </div>
+
+            {/* Live QR Preview Card */}
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center space-y-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                QR कोड लाइव प्रीव्यू (Live Preview)
+              </span>
+              <div className="p-2.5 bg-white rounded-xl shadow-xs border border-slate-200">
+                {formData.qrCodeImageUrl ? (
+                  <img
+                    src={formData.qrCodeImageUrl}
+                    alt="दुकान QR"
+                    className="w-32 h-32 object-contain rounded-lg"
+                  />
+                ) : (
+                  <QRCodeSVG
+                    value={`upi://pay?pa=${formData.upiId || 'denpos@upi'}&pn=${encodeURIComponent(formData.shopName || 'Shop')}&cu=INR`}
+                    size={120}
+                    level="M"
+                    includeMargin={true}
+                  />
+                )}
+              </div>
+              <div className="text-[11px] font-mono font-bold text-slate-700">
+                {formData.upiId || 'denpos@upi'}
+              </div>
             </div>
 
             <div>

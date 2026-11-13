@@ -154,6 +154,13 @@ export const ItemSearchGrid: React.FC<ItemSearchGridProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* Bulk Discount Badge */}
+                    {item.bulkDiscountThreshold && item.bulkDiscountPercentage && (
+                      <div className="mt-1.5 flex items-center gap-1 text-[10px] font-black text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md">
+                        <span>🔥 {item.bulkDiscountThreshold}+ लेने पर {item.bulkDiscountPercentage}% छूट</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Price & Quick Add Actions */}

@@ -225,11 +225,18 @@ export const InventoryScreen: React.FC = () => {
                         </span>
                       </td>
 
-                      <td className="p-3 font-extrabold text-emerald-800">
-                        {formatCurrency(item.salePrice)}
-                        <span className="text-xs font-normal text-slate-500 ml-1">
-                          / {formatUnit(item.unit, language)}
-                        </span>
+                      <td className="p-3">
+                        <div className="font-extrabold text-emerald-800">
+                          {formatCurrency(item.salePrice)}
+                          <span className="text-xs font-normal text-slate-500 ml-1">
+                            / {formatUnit(item.unit, language)}
+                          </span>
+                        </div>
+                        {item.bulkDiscountThreshold && item.bulkDiscountPercentage && (
+                          <span className="inline-block mt-1 text-[10px] font-black text-amber-900 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            🔥 {item.bulkDiscountThreshold}+ पर {item.bulkDiscountPercentage}% छूट
+                          </span>
+                        )}
                       </td>
 
                       <td className="p-3 text-slate-600 font-semibold text-xs">

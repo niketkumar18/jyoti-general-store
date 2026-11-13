@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Plus, Minus, Receipt, ShoppingBag } from 'lucide-react';
+import { Trash2, Plus, Minus, Receipt, ShoppingBag, Tag, Sparkles } from 'lucide-react';
 import type { CartItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
@@ -30,6 +30,15 @@ export const CartTable: React.FC<CartTableProps> = ({
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   const grandTotal = Math.max(0, subtotal - discount);
 
+  const totalBulkSavings = cart.reduce(
+    (sum, item) =>
+      sum +
+      (item.isBulkDiscountApplied
+        ? item.salePrice * item.quantity - item.total
+        : 0),
+    0
+  );
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-md flex flex-col h-full overflow-hidden">
       {/* Cart Header */}
@@ -43,7 +52,7 @@ export const CartTable: React.FC<CartTableProps> = ({
         {cart.length > 0 && (
           <button
             onClick={onClearCart}
-            className="text-xs text-rose-300 hover:text-rose-100 underline"
+            className="text-xs text-rose-300 hover:text-rose-100 underline cursor-pointer"
           >
             {t('clear_cart')}
           </button>
@@ -56,6 +65,12 @@ export const CartTable: React.FC<CartTableProps> = ({
           cart.map((item) => {
             const isWeight = item.unit === 'KG' || item.unit === 'LITRE';
             const step = isWeight ? 0.25 : 1;
+            const hasBulkRule = Boolean(
+              item.bulkDiscountThreshold && item.bulkDiscountPercentage
+            );
+            const remainingForBulk = hasBulkRule
+              ? Math.max(0, Number((item.bulkDiscountThreshold! - item.quantity).toFixed(2)))
+              : 0;
 
             return (
               <div
@@ -67,10 +82,22 @@ export const CartTable: React.FC<CartTableProps> = ({
                   <h4 className="font-bold text-slate-900 text-sm truncate">
                     {item.nameHi || item.nameEn}
                   </h4>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 mt-0.5">
                     <span>
                       @{formatCurrency(item.salePrice)} / {formatUnit(item.unit, language)}
                     </span>
+
+                    {/* Bulk Discount Applied Badge */}
+                    {item.isBulkDiscountApplied ? (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded">
+                        <Tag className="w-2.5 h-2.5 text-amber-700" />
+                        <span>{item.bulkDiscountPercentage}% थोक छूट (@ ₹{item.effectivePrice})</span>
+                      </span>
+                    ) : hasBulkRule && remainingForBulk > 0 ? (
+                      <span className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                        💡 {remainingForBulk} {item.unit} और लें = {item.bulkDiscountPercentage}% छूट
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -85,7 +112,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                         onUpdateQuantity(item.itemId, next);
                       }
                     }}
-                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all"
+                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 shadow-sm transition-all cursor-pointer"
                     title="कम करें"
                   >
                     <Minus className="w-3.5 h-3.5" />
@@ -93,7 +120,7 @@ export const CartTable: React.FC<CartTableProps> = ({
 
                   <input
                     type="number"
-                    step={isWeight ? "0.05" : "1"}
+                    step={isWeight ? '0.05' : '1'}
                     min="0"
                     value={item.quantity}
                     onChange={(e) => {
@@ -111,7 +138,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                       const next = Number((item.quantity + step).toFixed(2));
                       onUpdateQuantity(item.itemId, next);
                     }}
-                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-sm transition-all"
+                    className="w-7 h-7 flex items-center justify-center rounded-md bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-sm transition-all cursor-pointer"
                     title="बढ़ाएं"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -119,14 +146,21 @@ export const CartTable: React.FC<CartTableProps> = ({
                 </div>
 
                 {/* Line Total */}
-                <div className="w-18 text-right font-extrabold text-sm text-slate-900">
-                  {formatCurrency(item.total)}
+                <div className="w-20 text-right">
+                  {item.isBulkDiscountApplied && (
+                    <div className="line-through text-slate-400 text-[10px]">
+                      {formatCurrency(item.salePrice * item.quantity)}
+                    </div>
+                  )}
+                  <div className="font-extrabold text-sm text-slate-900">
+                    {formatCurrency(item.total)}
+                  </div>
                 </div>
 
                 {/* Delete button */}
                 <button
                   onClick={() => onRemoveItem(item.itemId)}
-                  className="text-slate-400 hover:text-rose-500 p-1 rounded-md"
+                  className="text-slate-400 hover:text-rose-500 p-1 rounded-md cursor-pointer"
                   title="हटाएं"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -152,6 +186,17 @@ export const CartTable: React.FC<CartTableProps> = ({
             <span>{t('subtotal')}</span>
             <span className="font-semibold text-slate-800">{formatCurrency(subtotal)}</span>
           </div>
+
+          {/* Bulk Discount Savings if applicable */}
+          {totalBulkSavings > 0 && (
+            <div className="flex items-center justify-between text-xs text-amber-900 font-bold bg-amber-100/70 p-2 rounded-xl border border-amber-300">
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                <span>थोक मात्रा बचत (Bulk Savings):</span>
+              </span>
+              <span>-{formatCurrency(totalBulkSavings)}</span>
+            </div>
+          )}
 
           {/* Discount Field */}
           <div className="flex items-center justify-between text-xs text-slate-600">

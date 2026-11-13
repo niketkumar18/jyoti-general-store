@@ -18,7 +18,7 @@ export const initialSettings: ShopSettings = {
 
 export const sampleItems: Omit<InventoryItem, 'id'>[] = [
   // दाल व दलहन
-  { nameEn: 'Toor Dal (Arhar)', nameHi: 'अरहर / तूर दाल (प्रीमियम)', category: 'dal_pulses', unit: 'KG', salePrice: 160, costPrice: 142, stockQty: 50, lowStockThreshold: 10, barcode: '8901001', createdAt: Date.now(), updatedAt: Date.now() },
+  { nameEn: 'Toor Dal (Arhar)', nameHi: 'अरहर / तूर दाल (प्रीमियम)', category: 'dal_pulses', unit: 'KG', salePrice: 160, costPrice: 142, stockQty: 50, lowStockThreshold: 10, barcode: '8901001', bulkDiscountThreshold: 5, bulkDiscountPercentage: 10, createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Moong Dal Dhuli', nameHi: 'मूंग दाल धुली', category: 'dal_pulses', unit: 'KG', salePrice: 120, costPrice: 105, stockQty: 35, lowStockThreshold: 5, barcode: '8901002', createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Chana Dal', nameHi: 'चना दाल', category: 'dal_pulses', unit: 'KG', salePrice: 90, costPrice: 78, stockQty: 40, lowStockThreshold: 8, barcode: '8901003', createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Masoor Dal Kali', nameHi: 'मसूर दाल काली साबुत', category: 'dal_pulses', unit: 'KG', salePrice: 95, costPrice: 82, stockQty: 30, lowStockThreshold: 5, barcode: '8901004', createdAt: Date.now(), updatedAt: Date.now() },
@@ -57,7 +57,7 @@ export const sampleItems: Omit<InventoryItem, 'id'>[] = [
   { nameEn: 'Lifebuoy Soap 100g', nameHi: 'लाइफबॉय साबुन (100 ग्राम)', category: 'soap_detergent', unit: 'PIECE', salePrice: 35, costPrice: 29, stockQty: 50, lowStockThreshold: 10, barcode: '8901041', createdAt: Date.now(), updatedAt: Date.now() },
 
   // नाश्ता व बिस्कुट
-  { nameEn: 'Parle-G Biscuit 250g', nameHi: 'पारले-जी बिस्कुट (250 ग्राम)', category: 'snacks_biscuit', unit: 'PACKET', salePrice: 25, costPrice: 21, stockQty: 75, lowStockThreshold: 15, barcode: '8901719', createdAt: Date.now(), updatedAt: Date.now() },
+  { nameEn: 'Parle-G Biscuit 250g', nameHi: 'पारले-जी बिस्कुट (250 ग्राम)', category: 'snacks_biscuit', unit: 'PACKET', salePrice: 20, costPrice: 15, stockQty: 75, lowStockThreshold: 15, barcode: '8901719', bulkDiscountThreshold: 5, bulkDiscountPercentage: 20, createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Good Day Butter Cookies 120g', nameHi: 'गुड डे बटर कुकीज (120 ग्राम)', category: 'snacks_biscuit', unit: 'PACKET', salePrice: 30, costPrice: 25, stockQty: 40, lowStockThreshold: 8, barcode: '8901720', createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Maggi 2-Minute Noodles (Pack of 4)', nameHi: 'मैगी 2-मिनट नूडल्स (4 का पैक)', category: 'snacks_biscuit', unit: 'PACKET', salePrice: 56, costPrice: 48, stockQty: 35, lowStockThreshold: 7, barcode: '8901721', createdAt: Date.now(), updatedAt: Date.now() },
   { nameEn: 'Haldiram Bhujia 400g', nameHi: 'हल्दीराम भुजिया नमकीन (400 ग्राम)', category: 'snacks_biscuit', unit: 'PACKET', salePrice: 110, costPrice: 94, stockQty: 25, lowStockThreshold: 5, barcode: '8901722', createdAt: Date.now(), updatedAt: Date.now() }

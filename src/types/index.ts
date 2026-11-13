@@ -35,6 +35,8 @@ export interface InventoryItem {
   lowStockThreshold: number;
   barcode?: string;
   imageUrl?: string;
+  bulkDiscountThreshold?: number; // e.g. 5 (यदि मात्रा इस सीमा या इससे ज्यादा हो)
+  bulkDiscountPercentage?: number; // e.g. 20 (20% छूट दर)
   createdAt: number;
   updatedAt: number;
 }
@@ -62,8 +64,12 @@ export interface CartItem {
   nameHi: string;
   unit: UnitType;
   quantity: number; // Can be fractional e.g. 0.25 for 250 gm
-  salePrice: number;
+  salePrice: number; // Base sale price (e.g. 20)
   costPrice?: number;
+  bulkDiscountThreshold?: number; // e.g. 5
+  bulkDiscountPercentage?: number; // e.g. 20
+  effectivePrice?: number; // Calculated price after bulk discount (e.g. 16)
+  isBulkDiscountApplied?: boolean;
   total: number;
 }
 
@@ -74,6 +80,8 @@ export interface InvoiceItem {
   unit: UnitType;
   quantity: number;
   unitPrice: number;
+  originalPrice?: number;
+  discountPercentage?: number;
   costPrice?: number;
   total: number;
 }
@@ -124,6 +132,7 @@ export interface ShopSettings {
   address: string;
   gstin?: string;
   upiId: string; // e.g. "kirana@okaxis" for QR code generation
+  qrCodeImageUrl?: string; // Custom uploaded QR code image (Base64 data URL)
   defaultCreditLimit: number;
   thermalPaperWidth: '58mm' | '80mm';
   enableSound: boolean;
