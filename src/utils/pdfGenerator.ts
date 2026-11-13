@@ -1,174 +1,151 @@
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 import type { Invoice, ShopSettings } from '../types';
 import { formatCurrency, formatDateTime } from './formatters';
 
-export function generateInvoicePdf(
+export async function generateInvoicePdf(
   invoice: Invoice,
   shop: ShopSettings,
   customerTotalBalance?: number
-) {
-  // Support 58mm (approx 58mm width, variable height) or 80mm
+): Promise<void> {
   const is58mm = shop.thermalPaperWidth === '58mm';
-  const pageWidth = is58mm ? 58 : 80;
-  
-  // Calculate dynamic height based on number of items
-  const baseHeight = 110;
-  const itemRowHeight = 7;
-  const pageHeight = Math.max(140, baseHeight + invoice.items.length * itemRowHeight);
+  const widthMm = is58mm ? 58 : 80;
+  const widthPx = is58mm ? 380 : 480;
 
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [pageWidth, pageHeight]
-  });
+  // 1. Check if the modal receipt is already mounted in the DOM
+  let elementToCapture = document.getElementById('den-printable-receipt');
+  let isTemp = false;
 
-  const margin = 4;
-  let y = 7;
-  const centerX = pageWidth / 2;
-  const rightX = pageWidth - margin;
+  // 2. If not mounted, create a temporary container off-screen
+  if (!elementToCapture) {
+    isTemp = true;
+    const tempDiv = document.createElement('div');
+    tempDiv.id = 'temp-pdf-render-container';
+    tempDiv.style.position = 'fixed';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '0';
+    tempDiv.style.width = `${widthPx}px`;
+    tempDiv.style.backgroundColor = '#FFFFFF';
+    tempDiv.style.padding = '16px';
+    tempDiv.style.fontFamily = "'Noto Sans Devanagari', 'Inter', system-ui, sans-serif";
+    tempDiv.style.color = '#0f172a';
+    tempDiv.style.boxSizing = 'border-box';
 
-  // Shop Header
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(is58mm ? 10 : 12);
-  doc.text(shop.shopName || 'DEN KIRANA STORE', centerX, y, { align: 'center' });
-  y += 4;
+    const itemsRows = invoice.items
+      .map(
+        (it) => `
+        <div style="display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px dashed #e2e8f0;">
+          <div style="flex: 1; text-align: left; font-weight: 600;">${it.nameHi || it.nameEn}</div>
+          <div style="width: 70px; text-align: center; color: #64748b;">${it.quantity} ${it.unit}</div>
+          <div style="width: 50px; text-align: right; color: #64748b;">${it.unitPrice}</div>
+          <div style="width: 60px; text-align: right; font-weight: 700;">₹${Math.round(it.total)}</div>
+        </div>
+      `
+      )
+      .join('');
 
-  if (shop.tagline) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(is58mm ? 6 : 7);
-    doc.text(shop.tagline, centerX, y, { align: 'center' });
-    y += 3.5;
+    tempDiv.innerHTML = `
+      <div style="text-align: center; margin-bottom: 8px;">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 900; text-transform: uppercase;">${shop.shopName || 'DEN किराना स्टोर'}</h2>
+        ${shop.tagline ? `<p style="margin: 2px 0; font-size: 10px; color: #64748b;">${shop.tagline}</p>` : ''}
+        ${shop.address ? `<p style="margin: 2px 0; font-size: 10px; color: #475569;">${shop.address}</p>` : ''}
+        ${shop.mobile ? `<p style="margin: 2px 0; font-size: 10px; color: #475569;">फोन: ${shop.mobile}</p>` : ''}
+        ${shop.gstin ? `<p style="margin: 2px 0; font-size: 10px; color: #475569;">GSTIN: ${shop.gstin}</p>` : ''}
+      </div>
+
+      <div style="border-top: 1px dashed #94a3b8; padding-top: 6px; margin-bottom: 6px; font-size: 11px; display: flex; justify-content: space-between;">
+        <span style="font-weight: 700;">बिल #${invoice.invoiceNumber}</span>
+        <span style="color: #64748b;">${formatDateTime(invoice.createdAt, 'hi')}</span>
+      </div>
+
+      ${invoice.customerName ? `
+        <div style="font-size: 11px; font-weight: 700; margin-bottom: 6px; display: flex; justify-content: space-between;">
+          <span>ग्राहक: ${invoice.customerName}</span>
+          ${invoice.customerMobile ? `<span>${invoice.customerMobile}</span>` : ''}
+        </div>
+      ` : ''}
+
+      <div style="border-top: 1px dashed #94a3b8; padding-top: 6px; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px;">
+          <div style="flex: 1; text-align: left;">सामान</div>
+          <div style="width: 70px; text-align: center;">मात्रा</div>
+          <div style="width: 50px; text-align: right;">रेट</div>
+          <div style="width: 60px; text-align: right;">रुपये</div>
+        </div>
+        ${itemsRows}
+      </div>
+
+      <div style="border-top: 1px dashed #94a3b8; padding-top: 6px; font-size: 11px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+          <span>कुल जोड़ (Subtotal):</span>
+          <span>₹${Math.round(invoice.subtotal)}</span>
+        </div>
+        ${invoice.discount > 0 ? `
+          <div style="display: flex; justify-content: space-between; color: #047857; margin-bottom: 3px;">
+            <span>छूट (Discount):</span>
+            <span>-₹${Math.round(invoice.discount)}</span>
+          </div>
+        ` : ''}
+        <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 900; border-top: 1px solid #0f172a; padding-top: 4px; margin-bottom: 4px;">
+          <span>कुल देय (Grand Total):</span>
+          <span>₹${Math.round(invoice.grandTotal)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; color: #475569; margin-bottom: 3px;">
+          <span>जमा भुगतान (${invoice.paymentMethod}):</span>
+          <span>₹${Math.round(invoice.paidAmount)}</span>
+        </div>
+        ${invoice.dueAmount > 0 ? `
+          <div style="display: flex; justify-content: space-between; font-weight: 800; color: #b91c1c; margin-bottom: 3px;">
+            <span>इस बिल का उधार:</span>
+            <span>₹${Math.round(invoice.dueAmount)}</span>
+          </div>
+        ` : ''}
+        ${typeof customerTotalBalance === 'number' ? `
+          <div style="display: flex; justify-content: space-between; font-weight: 800; background-color: #fef3c7; padding: 4px; border-radius: 4px; color: #78350f; margin-top: 4px;">
+            <span>कुल शेष उधारी बकाया:</span>
+            <span>₹${Math.round(customerTotalBalance)}</span>
+          </div>
+        ` : ''}
+      </div>
+
+      <div style="border-top: 1px dashed #94a3b8; padding-top: 8px; margin-top: 8px; text-align: center; font-size: 10px; color: #64748b;">
+        <p style="margin: 0; font-weight: 600;">🙏 धन्यवाद! फिर पधारें 🙏</p>
+        <p style="margin: 2px 0 0 0; font-size: 9px; color: #94a3b8;">Powered by DEN Kirana POS</p>
+      </div>
+    `;
+
+    document.body.appendChild(tempDiv);
+    elementToCapture = tempDiv;
   }
 
-  if (shop.address) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(is58mm ? 6 : 7);
-    doc.text(shop.address, centerX, y, { align: 'center' });
-    y += 3.5;
-  }
+  try {
+    // 3. Render HTML to Canvas with full Hindi font rendering
+    const canvas = await html2canvas(elementToCapture, {
+      scale: 2.5, // 2.5x retina clarity for ultra-sharp text
+      useCORS: true,
+      backgroundColor: '#FFFFFF',
+      logging: false
+    });
 
-  if (shop.mobile) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(is58mm ? 6 : 7);
-    doc.text(`Phone: ${shop.mobile}`, centerX, y, { align: 'center' });
-    y += 3.5;
-  }
+    // 4. Calculate proper PDF height based on content aspect ratio
+    const imgData = canvas.toDataURL('image/png');
+    const pdfHeightMm = (canvas.height * widthMm) / canvas.width;
 
-  if (shop.gstin) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(is58mm ? 6 : 7);
-    doc.text(`GSTIN: ${shop.gstin}`, centerX, y, { align: 'center' });
-    y += 3.5;
-  }
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [widthMm, pdfHeightMm]
+    });
 
-  // Divider
-  doc.setLineDashPattern([1, 1], 0);
-  doc.line(margin, y, rightX, y);
-  y += 4;
-
-  // Invoice Meta
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(is58mm ? 7 : 8);
-  doc.text(`Bill #${invoice.invoiceNumber}`, margin, y);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(is58mm ? 6 : 7);
-  doc.text(new Date(invoice.createdAt).toLocaleDateString(), rightX, y, { align: 'right' });
-  y += 3.5;
-
-  if (invoice.customerName && invoice.customerName !== 'नकद ग्राहक') {
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Cust: ${invoice.customerName}`, margin, y);
-    if (invoice.customerMobile) {
-      doc.setFont('helvetica', 'normal');
-      doc.text(invoice.customerMobile, rightX, y, { align: 'right' });
+    doc.addImage(imgData, 'PNG', 0, 0, widthMm, pdfHeightMm, undefined, 'FAST');
+    doc.save(`DEN_Bill_${invoice.invoiceNumber}.pdf`);
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    // Fallback: trigger standard browser print dialog
+    window.print();
+  } finally {
+    if (isTemp && elementToCapture && elementToCapture.parentNode) {
+      elementToCapture.parentNode.removeChild(elementToCapture);
     }
-    y += 3.5;
   }
-
-  // Divider
-  doc.line(margin, y, rightX, y);
-  y += 3.5;
-
-  // Table Header
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(is58mm ? 6 : 7);
-  doc.text('Item', margin, y);
-  doc.text('Qty', centerX - (is58mm ? 2 : 4), y, { align: 'center' });
-  doc.text('Rate', centerX + (is58mm ? 10 : 12), y, { align: 'right' });
-  doc.text('Amount', rightX, y, { align: 'right' });
-  y += 3;
-
-  doc.line(margin, y, rightX, y);
-  y += 3.5;
-
-  // Items List
-  doc.setFont('helvetica', 'normal');
-  invoice.items.forEach((item) => {
-    const itemName = item.nameEn || item.nameHi;
-    const truncatedName = itemName.length > (is58mm ? 15 : 22) ? itemName.substring(0, is58mm ? 14 : 20) + '..' : itemName;
-    
-    doc.text(truncatedName, margin, y);
-    doc.text(`${item.quantity} ${item.unit}`, centerX - (is58mm ? 2 : 4), y, { align: 'center' });
-    doc.text(`${item.unitPrice}`, centerX + (is58mm ? 10 : 12), y, { align: 'right' });
-    doc.text(`${Math.round(item.total)}`, rightX, y, { align: 'right' });
-    y += 4;
-  });
-
-  // Divider
-  doc.line(margin, y, rightX, y);
-  y += 4;
-
-  // Totals
-  doc.setFont('helvetica', 'normal');
-  doc.text('Subtotal:', margin + 10, y);
-  doc.text(`Rs. ${Math.round(invoice.subtotal)}`, rightX, y, { align: 'right' });
-  y += 3.5;
-
-  if (invoice.discount > 0) {
-    doc.text('Discount:', margin + 10, y);
-    doc.text(`-Rs. ${Math.round(invoice.discount)}`, rightX, y, { align: 'right' });
-    y += 3.5;
-  }
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(is58mm ? 8 : 9);
-  doc.text('Grand Total:', margin + 10, y);
-  doc.text(`Rs. ${Math.round(invoice.grandTotal)}`, rightX, y, { align: 'right' });
-  y += 4.5;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(is58mm ? 6.5 : 7.5);
-  doc.text(`Paid (${invoice.paymentMethod}):`, margin + 10, y);
-  doc.text(`Rs. ${Math.round(invoice.paidAmount)}`, rightX, y, { align: 'right' });
-  y += 3.5;
-
-  if (invoice.dueAmount > 0) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Bill Udhar / Due:', margin + 10, y);
-    doc.text(`Rs. ${Math.round(invoice.dueAmount)}`, rightX, y, { align: 'right' });
-    y += 3.5;
-  }
-
-  if (typeof customerTotalBalance === 'number') {
-    doc.text('Total Khata Balance:', margin + 10, y);
-    doc.text(`Rs. ${Math.round(customerTotalBalance)}`, rightX, y, { align: 'right' });
-    y += 4;
-  }
-
-  // Footer
-  y += 2;
-  doc.setLineDashPattern([], 0);
-  doc.line(margin, y, rightX, y);
-  y += 4;
-
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(is58mm ? 6 : 7);
-  doc.text('Thank you! Please visit again.', centerX, y, { align: 'center' });
-  y += 3;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(is58mm ? 5 : 6);
-  doc.text('Powered by DEN POS', centerX, y, { align: 'center' });
-
-  // Save / Download PDF
-  doc.save(`DEN_Bill_${invoice.invoiceNumber}.pdf`);
 }

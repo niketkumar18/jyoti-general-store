@@ -73,7 +73,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
 
         {/* Thermal Receipt Visual Preview */}
         <div className="p-4 bg-slate-100 overflow-y-auto flex-1 flex justify-center">
-          <div className="bg-white rounded-xl shadow-md border border-slate-200 p-4 sm:p-5 w-full max-w-xs text-xs font-mono text-slate-800 space-y-3 print:shadow-none print:border-none print:w-full">
+          <div id="den-printable-receipt" className="bg-white rounded-xl shadow-md border border-slate-200 p-4 sm:p-5 w-full max-w-xs text-xs font-mono text-slate-800 space-y-3 print:shadow-none print:border-none print:w-full">
             {/* Shop Header */}
             <div className="text-center space-y-0.5">
               <h4 className="font-black text-sm text-slate-950 uppercase tracking-wide">

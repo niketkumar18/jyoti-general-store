@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
-import { GOOGLE_APPS_SCRIPT_TEMPLATE } from '../../utils/googleSheetsSync';
+import { GOOGLE_APPS_SCRIPT_TEMPLATE, validateWebhookUrl } from '../../utils/googleSheetsSync';
 import { db } from '../../db';
 import { initialSettings, sampleItems, sampleCustomers } from '../../db/seedData';
 
@@ -38,12 +38,17 @@ export const SettingsScreen: React.FC = () => {
   const [isTestSyncing, setIsTestSyncing] = useState(false);
 
   const handleTestAndFullSync = async () => {
-    if (!formData.googleSheetsUrl) {
-      alert('कृपया पहले नीचे Google Sheets Webhook URL दर्ज करें!');
+    const check = validateWebhookUrl(formData.googleSheetsUrl);
+    if (!check.valid) {
+      setTestSyncMsg(check.error || 'अमान्य Webhook URL');
       return;
     }
+
     // Auto-save the URL first
-    await updateSettings({ googleSheetsUrl: formData.googleSheetsUrl });
+    await updateSettings({
+      googleSheetsUrl: formData.googleSheetsUrl,
+      googleSheetDocumentUrl: formData.googleSheetDocumentUrl
+    });
     setIsTestSyncing(true);
     setTestSyncMsg(null);
     try {
@@ -582,10 +587,13 @@ export const SettingsScreen: React.FC = () => {
               </div>
 
               <ol start={4} className="list-decimal pl-5 space-y-2">
+                <li className="bg-amber-50 p-2 rounded-lg border border-amber-200">
+                  <strong className="text-amber-900">⚡ तुरंत टेस्ट करें (बिना डिप्लॉय किए):</strong> ऊपर फ़ंक्शन ड्रॉपडाउन में <strong>testSyncDirectly</strong> चुनें और <strong>Run (▶️)</strong> दबाएँ। अपनी Google Sheet देखें — तुरंत 4 टैब में सारा डेटा दिख जाएगा!
+                </li>
                 <li>ऊपर नीले <strong>Deploy</strong> बटन पर क्लिक कर <strong>New deployment</strong> चुनें।</li>
                 <li>Gear (⚙️) आइकन पर क्लिक करके <strong>Web app</strong> चुनें।</li>
-                <li><strong>Execute as:</strong> "Me" और <strong>Who has access:</strong> "Anyone" रखें।</li>
-                <li><strong>Deploy</strong> पर क्लिक करें और मिली <strong>Web app URL</strong> को कॉपी कर ऊपर सेटिंग्स में पेस्ट कर दें!</li>
+                <li><strong>Execute as:</strong> "Me" और <strong className="text-rose-700 underline font-extrabold">Who has access: "Anyone"</strong> रखें (यह बहुत ज़रूरी है)।</li>
+                <li><strong>Deploy</strong> पर क्लिक करें और मिली <strong>Web app URL</strong> (जो /exec पर ख़त्म होती है) को कॉपी कर ऊपर सेटिंग्स में पेस्ट कर दें!</li>
               </ol>
 
               {/* Template & Storage Explanation */}
