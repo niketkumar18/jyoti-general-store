@@ -17,6 +17,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, calculateRiskLevel } from '../../utils/formatters';
 import { playSuccessChime } from '../../utils/audio';
 import { db } from '../../db';
+import { syncPendingToGoogleSheets } from '../../utils/googleSheetsSync';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -154,7 +155,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       }
 
-      // 4. Confetti and Sound
+      // 4. Auto-sync in background to Google Sheets if Webhook is configured
+      if (settings.googleSheetsUrl) {
+        syncPendingToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+          .catch((e) => console.error('Real-time Google Sheets sync error:', e));
+      }
+
+      // 5. Confetti and Sound
       if (settings.enableSound) {
         playSuccessChime();
       }

@@ -7,6 +7,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, calculateRiskLevel } from '../../utils/formatters';
 import { playSuccessChime } from '../../utils/audio';
 import { db } from '../../db';
+import { syncPendingToGoogleSheets } from '../../utils/googleSheetsSync';
 
 interface ReceivePaymentModalProps {
   isOpen: boolean;
@@ -66,6 +67,11 @@ export const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
           syncedToGoogle: false,
           createdAt: Date.now()
         });
+        // Auto-sync in background to Google Sheets
+        if (settings.googleSheetsUrl) {
+          syncPendingToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+            .catch((e) => console.error('Real-time Google Sheets sync error:', e));
+        }
       }
 
       if (settings.enableSound) {
