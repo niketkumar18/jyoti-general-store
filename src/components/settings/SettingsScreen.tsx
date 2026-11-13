@@ -13,7 +13,12 @@ import {
   Download, 
   Upload, 
   HelpCircle,
-  Volume2
+  Volume2,
+  ExternalLink,
+  Table,
+  CheckCircle2,
+  FileSpreadsheet,
+  Zap
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -23,12 +28,33 @@ import { initialSettings, sampleItems, sampleCustomers } from '../../db/seedData
 
 export const SettingsScreen: React.FC = () => {
   const { language, t } = useLanguage();
-  const { settings, updateSettings, isSyncing, syncNow } = useSettings();
+  const { settings, updateSettings, isSyncing, syncNow, syncFullNow } = useSettings();
 
   const [formData, setFormData] = useState({ ...settings });
   const [copiedCode, setCopiedCode] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testSyncMsg, setTestSyncMsg] = useState<string | null>(null);
+  const [isTestSyncing, setIsTestSyncing] = useState(false);
+
+  const handleTestAndFullSync = async () => {
+    if (!formData.googleSheetsUrl) {
+      alert('कृपया पहले नीचे Google Sheets Webhook URL दर्ज करें!');
+      return;
+    }
+    // Auto-save the URL first
+    await updateSettings({ googleSheetsUrl: formData.googleSheetsUrl });
+    setIsTestSyncing(true);
+    setTestSyncMsg(null);
+    try {
+      const msg = await syncFullNow();
+      setTestSyncMsg(msg);
+    } catch (err: any) {
+      setTestSyncMsg('त्रुटि: ' + (err?.message || 'सिंक नहीं हो सका'));
+    } finally {
+      setIsTestSyncing(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -285,54 +311,132 @@ export const SettingsScreen: React.FC = () => {
         </div>
 
         {/* Section 3: Google Sheets Free Database Sync */}
-        <div className="bg-emerald-50/60 rounded-2xl border border-emerald-200 p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="bg-emerald-50/70 rounded-2xl border-2 border-emerald-300 p-4 sm:p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2">
-            <h3 className="font-bold text-emerald-950 text-base flex items-center gap-2">
+            <h3 className="font-bold text-emerald-950 text-base sm:text-lg flex items-center gap-2">
               <Cloud className="w-5 h-5 text-emerald-700" />
-              <span>{t('google_sheets_sync')}</span>
+              <span>{t('google_sheets_sync')} (निजी क्लाउड बैकअप)</span>
             </h3>
-            <span className="text-[11px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
-              100% ₹0 Cost Forever
+            <span className="text-[11px] bg-emerald-200 text-emerald-900 px-2.5 py-0.5 rounded-full font-extrabold">
+              100% ₹0 Free Forever
             </span>
           </div>
 
-          <p className="text-xs text-emerald-900 leading-relaxed">
-            आपके दुकान का सारा डेटा (बिल, ग्राहक खाता, और बिक्री) आपकी खुद की निजी गूगल शीट में स्वतः सेव होता है। आप अपने फोन में गूगल शीट खोलकर कभी भी पूरा हिसाब देख और प्रिंट कर सकते हैं।
-          </p>
+          {/* Quick FAQ / Clarity Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-xs space-y-1">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5 text-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>डेटा कहाँ जोड़ना है? (Where to add data?)</span>
+              </span>
+              <p className="text-slate-600 leading-relaxed pl-5">
+                आपको Google Sheet में हाथ से कुछ भी टाइप नहीं करना है! आप <strong>DEN POS ऐप</strong> में बिल बनाएं, नया सामान जोड़ें या उधारी जमा करें — ऐप अपने-आप सारा डेटा आपकी गूगल शीट में भेज देगा।
+              </p>
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-emerald-950 mb-1">
+            <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-xs space-y-1">
+              <span className="font-extrabold text-emerald-900 flex items-center gap-1.5 text-xs">
+                <Table className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>शीट में क्या-क्या स्टोर होगा? (What gets stored?)</span>
+              </span>
+              <p className="text-slate-600 leading-relaxed pl-5">
+                गूगल शीट में स्वतः <strong>4 अलग-अलग टैब</strong> बनेंगे:
+                <br />• <strong>Invoices:</strong> सभी बिल, कुल राशि, नकद/उधार विवरण
+                <br />• <strong>Ledger:</strong> तारीख अनुसार ग्राहक खाता (Debit/Credit)
+                <br />• <strong>Customers:</strong> उधारी सीमा, वर्तमान बकाया, फोन नंबर
+                <br />• <strong>Inventory:</strong> सामान की लिस्ट, बिक्री दर और स्टॉक
+              </p>
+            </div>
+          </div>
+
+          {/* Webhook URL Input */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-emerald-950">
               {t('sheets_webhook_url')}
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="url"
                 value={formData.googleSheetsUrl || ''}
                 onChange={(e) => setFormData({ ...formData, googleSheetsUrl: e.target.value })}
                 placeholder="https://script.google.com/macros/s/.../exec"
-                className="flex-1 px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500"
+                className="flex-1 px-3 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-mono font-medium focus:ring-2 focus:ring-emerald-500 shadow-xs"
               />
               <button
                 type="button"
                 onClick={syncNow}
                 disabled={isSyncing || !formData.googleSheetsUrl}
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow flex items-center gap-1.5"
+                className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center gap-1.5 transition-all"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                <span>अभी सिंक करें</span>
+                <span>नए बिल सिंक करें</span>
               </button>
             </div>
           </div>
 
+          {/* 1-Click Verification / Full Sync Button */}
+          <div className="bg-white p-3.5 rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <h4 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+                <span>सत्यापन करें (Verification Test):</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                इस बटन को दबाते ही आपकी गूगल शीट में 4 टैब और सारा डेटा तुरंत लिख जाएगा।
+              </p>
+            </div>
+
+            <button
+              type="button"
+              disabled={isTestSyncing || !formData.googleSheetsUrl}
+              onClick={handleTestAndFullSync}
+              className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 text-white text-xs font-extrabold rounded-xl shadow flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isTestSyncing ? 'animate-spin' : ''}`} />
+              <span>{isTestSyncing ? 'शीट में भेजा जा रहा है...' : '⚡ टेस्ट कनेक्शन और पूरा डेटा भेजें'}</span>
+            </button>
+          </div>
+
+          {/* Test Sync Feedback Banner */}
+          {testSyncMsg && (
+            <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{testSyncMsg}</span>
+              </div>
+              <a
+                href="https://sheets.google.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-emerald-800 underline font-bold shrink-0 flex items-center gap-1 hover:text-emerald-950"
+              >
+                <span>शीट खोलकर देखें</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
+
           {/* Setup Guide Button */}
-          <button
-            type="button"
-            onClick={() => setShowGuideModal(true)}
-            className="text-xs font-bold text-emerald-800 underline flex items-center gap-1 hover:text-emerald-950"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>{t('sheets_guide_btn')} (2-मिनट सेटअप)</span>
-          </button>
+          <div className="flex items-center justify-between pt-1">
+            <button
+              type="button"
+              onClick={() => setShowGuideModal(true)}
+              className="text-xs font-bold text-emerald-800 underline flex items-center gap-1 hover:text-emerald-950"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>{t('sheets_guide_btn')} (कोड व 2-मिनट सेटअप स्टेप्स)</span>
+            </button>
+
+            <a
+              href="https://sheets.new"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs font-semibold text-slate-500 hover:text-emerald-800 flex items-center gap-1"
+            >
+              <span>sheets.new खोलें</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
 
         {/* Section 4: Backup & Restore */}
@@ -442,6 +546,31 @@ export const SettingsScreen: React.FC = () => {
                 <li><strong>Execute as:</strong> "Me" और <strong>Who has access:</strong> "Anyone" रखें।</li>
                 <li><strong>Deploy</strong> पर क्लिक करें और मिली <strong>Web app URL</strong> को कॉपी कर ऊपर सेटिंग्स में पेस्ट कर दें!</li>
               </ol>
+
+              {/* Template & Storage Explanation */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2 mt-3">
+                <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Table className="w-4 h-4 text-emerald-600" />
+                  <span>Google Sheet में क्या-क्या बनेगा और डेटा कैसे दिखेगा?</span>
+                </h4>
+                <p className="text-[11px] text-slate-600">
+                  आपको Google Sheet में कोई कॉलम या फॉर्मेट बनाने की जरूरत नहीं है। यह स्क्रिप्ट अपने-आप 4 टैब बनाएगी:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-emerald-800">1. Invoices टैब:</strong> बिल सं., ग्राहक, कुल देय, जमा राशि, उधारी, और सामानों की सूची
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-amber-800">2. Ledger टैब:</strong> तारीख अनुसार ग्राहक खाता, उधारी (Debit) और नकद/UPI जमा (Credit)
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-green-800">3. Customers टैब:</strong> ग्राहकों के नाम, फोन, उधारी सीमा, और कुल शेष बकाया
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-blue-800">4. Inventory टैब:</strong> दुकान का सारा सामान, खरीद/बिक्री रेट, और बचा हुआ स्टॉक
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="p-3 bg-slate-50 border-t border-slate-200 text-right">

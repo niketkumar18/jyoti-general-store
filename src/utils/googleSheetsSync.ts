@@ -5,21 +5,33 @@ export interface SyncResult {
   success: boolean;
   syncedInvoices: number;
   syncedLedgers: number;
+  syncedCustomers?: number;
+  syncedItems?: number;
   message: string;
 }
 
-export const GOOGLE_APPS_SCRIPT_TEMPLATE = `
-/**
- * DEN Kirana POS - 100% Free Google Sheets Sync Webhook
+export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
+ * DEN Kirana POS - 100% Free Google Sheets Cloud Database
  * 
  * Instructions:
  * 1. Open Google Sheets (https://sheets.new)
- * 2. Create 4 tabs: "Invoices", "Ledger", "Customers", "Inventory"
- * 3. Go to Extensions > Apps Script
- * 4. Paste this code completely, click Save, then Deploy > New Deployment
- * 5. Select type "Web app", Execute as "Me", Who has access "Anyone"
- * 6. Copy the Web App URL and paste it into DEN Settings!
+ * 2. Go to Extensions > Apps Script
+ * 3. Replace all code with this script and click Save (💾)
+ * 4. Click Deploy > New deployment
+ * 5. Type: "Web app" | Execute as: "Me" | Who has access: "Anyone"
+ * 6. Copy the Web App URL and paste into DEN Settings!
+ * 
+ * Note: No manual columns or sheets needed! This script creates
+ * all 4 tabs ("Invoices", "Ledger", "Customers", "Inventory") automatically!
  */
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: 'online',
+    app: 'DEN Kirana POS',
+    message: 'Google Sheets Webhook is active and connected!'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
 
 function doPost(e) {
   try {
@@ -27,66 +39,126 @@ function doPost(e) {
     var payload = JSON.parse(e.postData.contents);
     var action = payload.action;
 
-    if (action === 'SYNC_ALL' || action === 'SYNC_INVOICE') {
-      if (payload.invoices && payload.invoices.length > 0) {
-        var sheetInvoices = ss.getSheetByName('Invoices') || ss.insertSheet('Invoices');
-        if (sheetInvoices.getLastRow() === 0) {
-          sheetInvoices.appendRow(['Date', 'Invoice #', 'Customer Name', 'Mobile', 'Grand Total', 'Paid', 'Due / Udhar', 'Payment Mode', 'Items']);
-        }
-        payload.invoices.forEach(function(inv) {
-          sheetInvoices.appendRow([
-            new Date(inv.createdAt).toLocaleString(),
-            inv.invoiceNumber,
-            inv.customerName,
-            inv.customerMobile,
-            inv.grandTotal,
-            inv.paidAmount,
-            inv.dueAmount,
-            inv.paymentMethod,
-            JSON.stringify(inv.items)
-          ]);
-        });
+    // 1. SYNC INVOICES TAB
+    if (payload.invoices && payload.invoices.length > 0) {
+      var sheetInvoices = ss.getSheetByName('Invoices') || ss.insertSheet('Invoices');
+      if (sheetInvoices.getLastRow() === 0) {
+        var hRow = ['Date & Time', 'Bill Number', 'Customer Name', 'Mobile', 'Grand Total (₹)', 'Paid (₹)', 'Due / Udhar (₹)', 'Payment Mode', 'Items Detail'];
+        sheetInvoices.appendRow(hRow);
+        sheetInvoices.getRange(1, 1, 1, hRow.length).setFontWeight('bold').setBackground('#E2E8F0');
+        sheetInvoices.setFrozenRows(1);
       }
+      payload.invoices.forEach(function(inv) {
+        var itemsSummary = (inv.items || []).map(function(it) {
+          return (it.nameHi || it.nameEn) + ' (' + it.quantity + ' ' + it.unit + ' @ ₹' + it.unitPrice + ')';
+        }).join(', ');
 
-      if (payload.ledgers && payload.ledgers.length > 0) {
-        var sheetLedger = ss.getSheetByName('Ledger') || ss.insertSheet('Ledger');
-        if (sheetLedger.getLastRow() === 0) {
-          sheetLedger.appendRow(['Date', 'Customer Name', 'Type (DEBIT/CREDIT)', 'Amount', 'Mode', 'Bill Ref', 'Description', 'Balance']);
-        }
-        payload.ledgers.forEach(function(led) {
-          sheetLedger.appendRow([
-            new Date(led.createdAt).toLocaleString(),
-            led.customerName,
-            led.type,
-            led.amount,
-            led.paymentMode || '',
-            led.invoiceNumber || '',
-            led.description,
-            led.runningBalance
-          ]);
-        });
-      }
-
-      return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Synced successfully' }))
-        .setMimeType(ContentService.MimeType.JSON);
+        sheetInvoices.appendRow([
+          new Date(inv.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          inv.invoiceNumber,
+          inv.customerName || 'नकद ग्राहक',
+          inv.customerMobile || '',
+          inv.grandTotal,
+          inv.paidAmount,
+          inv.dueAmount,
+          inv.paymentMethod,
+          itemsSummary
+        ]);
+      });
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ status: 'ignored' }))
-      .setMimeType(ContentService.MimeType.JSON);
+    // 2. SYNC KHATA LEDGER TAB
+    if (payload.ledgers && payload.ledgers.length > 0) {
+      var sheetLedger = ss.getSheetByName('Ledger') || ss.insertSheet('Ledger');
+      if (sheetLedger.getLastRow() === 0) {
+        var lRow = ['Date & Time', 'Customer Name', 'Type (उधार / जमा)', 'Amount (₹)', 'Payment Mode', 'Bill #', 'Description', 'Running Due Balance (₹)'];
+        sheetLedger.appendRow(lRow);
+        sheetLedger.getRange(1, 1, 1, lRow.length).setFontWeight('bold').setBackground('#FEF3C7');
+        sheetLedger.setFrozenRows(1);
+      }
+      payload.ledgers.forEach(function(led) {
+        sheetLedger.appendRow([
+          new Date(led.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          led.customerName,
+          led.type === 'DEBIT' ? 'उधार (DEBIT)' : 'जमा (CREDIT)',
+          led.amount,
+          led.paymentMode || '',
+          led.invoiceNumber || '',
+          led.description,
+          led.runningBalance
+        ]);
+      });
+    }
+
+    // 3. FULL SYNC: CUSTOMERS TAB
+    if (payload.customers && payload.customers.length > 0) {
+      var sheetCust = ss.getSheetByName('Customers') || ss.insertSheet('Customers');
+      sheetCust.clearContents();
+      var cRow = ['Customer Name', 'Mobile Number', 'Credit Limit (₹)', 'Current Due (₹)', 'Risk Status (सुरक्षित/जोखिम)', 'Address / Notes'];
+      sheetCust.appendRow(cRow);
+      sheetCust.getRange(1, 1, 1, cRow.length).setFontWeight('bold').setBackground('#D1FAE5');
+      sheetCust.setFrozenRows(1);
+      
+      payload.customers.forEach(function(c) {
+        sheetCust.appendRow([
+          c.name,
+          c.mobile || '',
+          c.creditLimit,
+          c.currentBalance,
+          c.riskLevel.toUpperCase(),
+          c.address || c.notes || ''
+        ]);
+      });
+    }
+
+    // 4. FULL SYNC: INVENTORY TAB
+    if (payload.items && payload.items.length > 0) {
+      var sheetItems = ss.getSheetByName('Inventory') || ss.insertSheet('Inventory');
+      sheetItems.clearContents();
+      var iRow = ['Item Name (Hindi)', 'Item Name (English)', 'Category', 'Unit', 'Sale Price (₹)', 'Cost Price (₹)', 'Stock Qty', 'Low Stock Limit', 'Barcode'];
+      sheetItems.appendRow(iRow);
+      sheetItems.getRange(1, 1, 1, iRow.length).setFontWeight('bold').setBackground('#DBEAFE');
+      sheetItems.setFrozenRows(1);
+
+      payload.items.forEach(function(it) {
+        sheetItems.appendRow([
+          it.nameHi,
+          it.nameEn || '',
+          it.category,
+          it.unit,
+          it.salePrice,
+          it.costPrice || '',
+          it.stockQty,
+          it.lowStockThreshold,
+          it.barcode || ''
+        ]);
+      });
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'success',
+      message: 'All records synced cleanly into Google Sheets!'
+    })).setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: 'error', error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'error',
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 `;
 
+/**
+ * Syncs only pending / unsynced invoices and ledger transactions
+ */
 export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<SyncResult> {
   if (!webhookUrl || !webhookUrl.startsWith('http')) {
     return {
       success: false,
       syncedInvoices: 0,
       syncedLedgers: 0,
-      message: 'गूगल शीट वेबहुक URL सेट नहीं है / Google Sheets URL is not configured'
+      message: 'कृपया पहले Google Sheets Webhook URL दर्ज करें'
     };
   }
 
@@ -99,45 +171,36 @@ export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<Syn
         success: true,
         syncedInvoices: 0,
         syncedLedgers: 0,
-        message: 'सभी डेटा पहले से गूगल शीट में सिंक है / All records already up to date'
+        message: 'सभी नए बिल पहले से गूगल शीट में सिंक हैं। पूरा डेटा दोबारा भेजने के लिए "टेस्ट व संपूर्ण सिंक" दबाएं।'
       };
     }
 
     const payload = {
-      action: 'SYNC_ALL',
+      action: 'SYNC_PENDING',
       invoices: unsyncedInvoices,
       ledgers: unsyncedLedgers,
       timestamp: Date.now()
     };
 
-    // Send payload using no-cors or JSON post
     await fetch(webhookUrl, {
       method: 'POST',
       mode: 'no-cors',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
-    // Mark as synced in Dexie
     for (const inv of unsyncedInvoices) {
-      if (inv.id) {
-        await db.invoices.update(inv.id, { syncedToGoogle: true });
-      }
+      if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
     }
-
     for (const led of unsyncedLedgers) {
-      if (led.id) {
-        await db.ledger.update(led.id, { syncedToGoogle: true });
-      }
+      if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
     }
 
     return {
       success: true,
       syncedInvoices: unsyncedInvoices.length,
       syncedLedgers: unsyncedLedgers.length,
-      message: `${unsyncedInvoices.length} बिल और ${unsyncedLedgers.length} खाता प्रविष्टियां सिंक की गईं!`
+      message: `सफलतापूर्वक ${unsyncedInvoices.length} नए बिल और ${unsyncedLedgers.length} खाता प्रविष्टियां गूगल शीट में जोड़ दी गईं!`
     };
   } catch (error: any) {
     console.error('Sync failed:', error);
@@ -145,7 +208,70 @@ export async function syncPendingToGoogleSheets(webhookUrl: string): Promise<Syn
       success: false,
       syncedInvoices: 0,
       syncedLedgers: 0,
-      message: error?.message || 'सिंक करने में त्रुटि आई (ऑफलाइन मोड सक्रिय)'
+      message: error?.message || 'सिंक करने में त्रुटि आई (ऑफलाइन मोड चालू है)'
+    };
+  }
+}
+
+/**
+ * Full Sync: Sends ALL historical data (Invoices, Ledger, Customers, Inventory) to Google Sheets
+ * This allows the user to immediately verify their Google Sheet with live data!
+ */
+export async function syncFullDatabaseToGoogleSheets(webhookUrl: string): Promise<SyncResult> {
+  if (!webhookUrl || !webhookUrl.startsWith('http')) {
+    return {
+      success: false,
+      syncedInvoices: 0,
+      syncedLedgers: 0,
+      message: 'कृपया पहले Google Sheets Webhook URL दर्ज करें'
+    };
+  }
+
+  try {
+    const allInvoices = await db.invoices.toArray();
+    const allLedgers = await db.ledger.toArray();
+    const allCustomers = await db.customers.toArray();
+    const allItems = await db.items.toArray();
+
+    const payload = {
+      action: 'SYNC_FULL',
+      invoices: allInvoices,
+      ledgers: allLedgers,
+      customers: allCustomers,
+      items: allItems,
+      timestamp: Date.now()
+    };
+
+    await fetch(webhookUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    // Mark all as synced
+    for (const inv of allInvoices) {
+      if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
+    }
+    for (const led of allLedgers) {
+      if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
+    }
+
+    return {
+      success: true,
+      syncedInvoices: allInvoices.length,
+      syncedLedgers: allLedgers.length,
+      syncedCustomers: allCustomers.length,
+      syncedItems: allItems.length,
+      message: `✅ गूगल शीट में सफलतापूर्वक सिंक हुआ! (${allCustomers.length} ग्राहक, ${allItems.length} सामान, ${allInvoices.length} बिल, ${allLedgers.length} खाता प्रविष्टियां)`
+    };
+  } catch (error: any) {
+    console.error('Full sync failed:', error);
+    return {
+      success: false,
+      syncedInvoices: 0,
+      syncedLedgers: 0,
+      message: error?.message || 'सिंक विफल रहा'
     };
   }
 }

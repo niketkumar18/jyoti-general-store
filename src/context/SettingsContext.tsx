@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ShopSettings } from '../types';
 import { initialSettings, initializeDatabaseIfEmpty } from '../db/seedData';
 import { db } from '../db';
-import { syncPendingToGoogleSheets } from '../utils/googleSheetsSync';
+import { syncPendingToGoogleSheets, syncFullDatabaseToGoogleSheets } from '../utils/googleSheetsSync';
 
 interface SettingsContextType {
   settings: ShopSettings;
@@ -10,6 +10,7 @@ interface SettingsContextType {
   isOnline: boolean;
   isSyncing: boolean;
   syncNow: () => Promise<string>;
+  syncFullNow: () => Promise<string>;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -64,8 +65,26 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
+  const syncFullNow = async (): Promise<string> => {
+    if (!settings.googleSheetsUrl) {
+      return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
+    }
+    setIsSyncing(true);
+    try {
+      const res = await syncFullDatabaseToGoogleSheets(settings.googleSheetsUrl);
+      if (res.success) {
+        await updateSettings({ lastSyncedAt: Date.now() });
+      }
+      return res.message;
+    } catch (e: any) {
+      return e?.message || 'सिंक विफल रहा';
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, isOnline, isSyncing, syncNow }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, isOnline, isSyncing, syncNow, syncFullNow }}>
       {children}
     </SettingsContext.Provider>
   );
