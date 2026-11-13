@@ -53,7 +53,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [cashTendered, setCashTendered] = useState<number>(grandTotal);
   const [splitPaidAmount, setSplitPaidAmount] = useState<number>(Math.floor(grandTotal / 2));
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showUploadedQr, setShowUploadedQr] = useState(false);
+  const [showUploadedQr, setShowUploadedQr] = useState(Boolean(settings.qrCodeImageUrl));
   const [copiedUpi, setCopiedUpi] = useState(false);
 
   if (!isOpen) return null;

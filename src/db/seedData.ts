@@ -2,14 +2,15 @@ import { db } from './index';
 import type { InventoryItem, Customer, ShopSettings } from '../types';
 
 export const initialSettings: ShopSettings = {
-  shopName: 'श्री भोग किराना एवं जनरल स्टोर',
-  shopNameHi: 'श्री भोग किराना एवं जनरल स्टोर',
+  shopName: 'JYOTI GENERAL STORE',
+  shopNameHi: 'ज्योति जनरल स्टोर',
   tagline: 'शुद्धता और विश्वास का प्रतीक | DEN POS',
   ownerName: 'दुकानदार भैया',
-  mobile: '9876543210',
-  address: 'मेन मार्केट, नियर घंटाघर, चौक बाजार',
+  mobile: '9931300369',
+  address: 'Deep Market, Meghpur',
   gstin: '09AAACH7409R1ZZ',
-  upiId: 'shreebhog@upi',
+  upiId: '9931300369@okbizaxis',
+  qrCodeImageUrl: '/jyoti-qr-standee.jpg',
   defaultCreditLimit: 2000,
   thermalPaperWidth: '80mm',
   enableSound: true,
@@ -219,8 +220,28 @@ export async function initializeDatabaseIfEmpty() {
   }
 
   // Settings
-  const settingsCount = await db.settings.count();
-  if (settingsCount === 0) {
+  const settingsRecord = await db.settings.get('shop_settings');
+  if (!settingsRecord) {
     await db.settings.put({ key: 'shop_settings', value: initialSettings });
+  } else {
+    const current = settingsRecord.value;
+    if (
+      !current.upiId ||
+      current.upiId === 'shreebhog@upi' ||
+      current.shopName === 'श्री भोग किराना एवं जनरल स्टोर' ||
+      !current.qrCodeImageUrl
+    ) {
+      await db.settings.put({
+        key: 'shop_settings',
+        value: {
+          ...current,
+          shopName: current.shopName === 'श्री भोग किराना एवं जनरल स्टोर' ? 'JYOTI GENERAL STORE' : current.shopName,
+          shopNameHi: current.shopNameHi === 'श्री भोग किराना एवं जनरल स्टोर' ? 'ज्योति जनरल स्टोर' : current.shopNameHi,
+          mobile: current.mobile === '9876543210' ? '9931300369' : current.mobile,
+          upiId: '9931300369@okbizaxis',
+          qrCodeImageUrl: '/jyoti-qr-standee.jpg'
+        }
+      });
+    }
   }
 }
