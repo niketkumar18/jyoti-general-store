@@ -139,9 +139,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-        <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[94dvh]">
           {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-emerald-700/80 rounded-xl">
                 <Sparkles className="w-5 h-5 text-emerald-300" />
@@ -168,7 +168,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+          <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
             {/* Bilingual Name Inputs */}
             <div className="space-y-3">
               <div>
@@ -509,27 +510,28 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 बारकोड स्कैनर से स्कैन करने पर यह सामान तुरंत बिल में जुड़ जाएगा।
               </p>
             </div>
+          </div>
 
-            {/* Action Buttons */}
-            <div className="pt-2 flex gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 cursor-pointer"
-              >
-                {language === 'hi' ? 'रद्द करें' : 'Cancel'}
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
-              >
-                <Save className="w-4 h-4" />
-                <span>{t('save_item')}</span>
-              </button>
-            </div>
-          </form>
-        </div>
+          {/* Action Buttons (Sticky at bottom, always visible on mobile) */}
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 sticky bottom-0 z-10">
+            <button
+              type="button"
+              onClick={onClose}
+              className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 cursor-pointer"
+            >
+              {language === 'hi' ? 'रद्द करें' : 'Cancel'}
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+            >
+              <Save className="w-4 h-4" />
+              <span>{t('save_item')}</span>
+            </button>
+          </div>
+        </form>
       </div>
+    </div>
 
       {/* Category Manager Modal */}
       <CategoryManageModal

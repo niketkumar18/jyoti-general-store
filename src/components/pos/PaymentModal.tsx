@@ -225,9 +225,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Modal Top Bar */}
-        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-extrabold text-lg sm:text-xl">
               {language === 'hi' ? 'भुगतान एवं बिल पूर्ण करें' : 'Complete Payment & Bill'}
@@ -245,7 +245,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </div>
 
         {/* Grand Total Display */}
-        <div className="bg-emerald-50/70 border-b border-emerald-100 p-4 text-center">
+        <div className="bg-emerald-50/70 border-b border-emerald-100 p-3 sm:p-4 text-center shrink-0">
           <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
             {t('grand_total')}
           </div>
@@ -255,7 +255,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </div>
 
         {/* Payment Methods Grid */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
           <div className="text-xs font-bold text-slate-700">
             {t('payment_method')}
           </div>
@@ -512,11 +512,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex gap-3">
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex gap-2 sm:gap-3 shrink-0 sticky bottom-0 z-10">
           <button
             type="button"
             onClick={onClose}
-            className="py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-2xl transition-all"
+            className="py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold rounded-2xl transition-all cursor-pointer"
           >
             {language === 'hi' ? 'रद्द करें' : 'Cancel'}
           </button>
@@ -525,7 +525,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             type="button"
             disabled={isSubmitting}
             onClick={handleCompleteBill}
-            className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 active:scale-98 text-white font-extrabold text-base rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="flex-1 py-3 px-4 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 active:scale-98 text-white font-extrabold text-sm sm:text-base rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             <CheckCircle2 className="w-5 h-5" />
             <span>

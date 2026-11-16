@@ -60,7 +60,7 @@ export const CartTable: React.FC<CartTableProps> = ({
       </div>
 
       {/* Cart Items List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
+      <div className="flex-1 min-h-[100px] overflow-y-auto divide-y divide-slate-100 p-2">
         {cart.length > 0 ? (
           cart.map((item) => {
             const isWeight = item.unit === 'KG' || item.unit === 'LITRE';
@@ -180,7 +180,7 @@ export const CartTable: React.FC<CartTableProps> = ({
 
       {/* Cart Summary & Checkout */}
       {cart.length > 0 && (
-        <div className="p-3.5 bg-slate-50 border-t border-slate-200 space-y-2.5">
+        <div className="p-3 sm:p-3.5 bg-slate-50 border-t border-slate-200 space-y-2 sm:space-y-2.5 shrink-0 sticky bottom-0 z-10 shadow-md">
           {/* Subtotal */}
           <div className="flex items-center justify-between text-xs text-slate-600">
             <span>{t('subtotal')}</span>

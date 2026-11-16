@@ -145,9 +145,9 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[94vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-extrabold text-lg sm:text-xl">
@@ -235,9 +235,9 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
 
         {/* Tab Content: Ledger */}
         {activeTab === 'LEDGER' && (
-          <div className="p-3 sm:p-4 overflow-y-auto flex-1">
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs sm:text-sm">
+          <div className="p-3 sm:p-4 overflow-y-auto flex-1 min-h-0">
+            <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[580px]">
                 <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] border-b border-slate-200">
                   <tr>
                     <th className="p-2.5 sm:p-3 w-28">{t('date_col')}</th>
@@ -387,9 +387,9 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
 
         {/* Tab Content: Invoices History */}
         {activeTab === 'INVOICES' && (
-          <div className="p-3 sm:p-4 overflow-y-auto flex-1">
-            <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <table className="w-full text-left text-xs sm:text-sm">
+          <div className="p-3 sm:p-4 overflow-y-auto flex-1 min-h-0">
+            <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-sm">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[580px]">
                 <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[11px] border-b border-slate-200">
                   <tr>
                     <th className="p-2.5 sm:p-3">बिल # एवं तारीख</th>
@@ -469,7 +469,7 @@ export const CustomerLedgerModal: React.FC<CustomerLedgerModalProps> = ({
         )}
 
         {/* Footer Actions */}
-        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 justify-between items-center">
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 justify-between items-center shrink-0 sticky bottom-0 z-10">
           <button
             onClick={handleSendReminder}
             className="w-full sm:w-auto py-2 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white text-xs font-bold rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"

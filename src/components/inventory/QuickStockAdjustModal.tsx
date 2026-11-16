@@ -37,10 +37,10 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-sm w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <PackagePlus className="w-5 h-5 text-emerald-400" />
             <h3 className="font-bold text-sm">
@@ -53,7 +53,7 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
         </div>
 
         {/* Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div>
             <h4 className="font-bold text-slate-900 text-base">
               {item.nameHi || item.nameEn}
@@ -124,7 +124,7 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex gap-2">
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex gap-2 shrink-0 sticky bottom-0 z-10">
           <button
             onClick={onClose}
             className="flex-1 py-2 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100"

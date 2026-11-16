@@ -72,9 +72,9 @@ export const CategoryManageModal: React.FC<CategoryManageModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-xl w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-emerald-700/80 rounded-xl">
               <Layers className="w-5 h-5 text-emerald-300" />
@@ -99,7 +99,7 @@ export const CategoryManageModal: React.FC<CategoryManageModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
           {/* Quick Add Form */}
           <form
             onSubmit={handleAdd}
@@ -211,7 +211,7 @@ export const CategoryManageModal: React.FC<CategoryManageModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end shrink-0 sticky bottom-0 z-10">
           <button
             onClick={onClose}
             className="py-2 px-4 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 cursor-pointer"

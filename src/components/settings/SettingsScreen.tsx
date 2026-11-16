@@ -131,7 +131,7 @@ export const SettingsScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-6 pb-16">
+    <div className="max-w-4xl mx-auto p-3 sm:p-6 space-y-6 pb-28 sm:pb-16">
       {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex items-center justify-between">
         <div>
@@ -591,10 +591,10 @@ export const SettingsScreen: React.FC = () => {
         </div>
 
         {/* Save Settings Button */}
-        <div className="pt-2">
+        <div className="pt-2 sticky bottom-4 z-20">
           <button
             type="submit"
-            className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 active:scale-98 text-white font-extrabold text-base rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            className="w-full py-4 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 active:scale-98 text-white font-black text-base rounded-2xl shadow-xl shadow-emerald-950/40 flex items-center justify-center gap-2 transition-all cursor-pointer border border-emerald-400/30"
           >
             <Save className="w-5 h-5" />
             <span>{t('save_settings')}</span>
@@ -605,7 +605,7 @@ export const SettingsScreen: React.FC = () => {
       {/* Google Sheets Setup Guide Modal */}
       {showGuideModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90dvh]">
             <div className="bg-emerald-900 text-white p-4 flex items-center justify-between">
               <h3 className="font-bold text-base flex items-center gap-2">
                 <Cloud className="w-5 h-5 text-emerald-300" />

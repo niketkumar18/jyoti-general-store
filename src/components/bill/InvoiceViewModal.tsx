@@ -49,9 +49,9 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-emerald-800 text-white p-4 flex items-center justify-between">
+        <div className="bg-emerald-800 text-white p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-6 h-6 text-emerald-300" />
             <div>
@@ -72,7 +72,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
         </div>
 
         {/* Thermal Receipt Visual Preview */}
-        <div className="p-4 bg-slate-100 overflow-y-auto flex-1 flex justify-center">
+        <div className="p-4 bg-slate-100 overflow-y-auto flex-1 min-h-0 flex justify-center">
           <div id="den-printable-receipt" className="bg-white rounded-xl shadow-md border border-slate-200 p-4 sm:p-5 w-full max-w-xs text-xs font-mono text-slate-800 space-y-3 print:shadow-none print:border-none print:w-full">
             {/* Shop Header */}
             <div className="text-center space-y-0.5">
@@ -170,7 +170,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
         </div>
 
         {/* 1-Click WhatsApp + PDF + Print Actions */}
-        <div className="p-4 bg-white border-t border-slate-200 space-y-2.5">
+        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 space-y-2 shrink-0 sticky bottom-0 z-10">
           {/* Primary 1-Click WhatsApp Button */}
           <button
             onClick={handleWhatsApp}

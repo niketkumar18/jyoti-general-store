@@ -60,7 +60,7 @@ export const KhataScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 pb-24 sm:pb-6">
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Total Outstanding */}
@@ -136,15 +136,15 @@ export const KhataScreen: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
             {/* Export CSV */}
             <button
               onClick={handleExportCsv}
-              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all"
+              className="flex-1 sm:flex-initial py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all"
               title="CSV डाउनलोड करें"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">CSV एक्सपोर्ट</span>
+              <span>CSV एक्सपोर्ट</span>
             </button>
 
             {/* Add New Customer */}
@@ -153,7 +153,7 @@ export const KhataScreen: React.FC = () => {
                 setCustomerToEdit(null);
                 setShowCustomerForm(true);
               }}
-              className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap"
+              className="w-full sm:w-auto py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer whitespace-nowrap"
             >
               <UserPlus className="w-4 h-4" />
               <span>{t('add_new_customer')}</span>
@@ -323,6 +323,20 @@ export const KhataScreen: React.FC = () => {
           setCustomerToEdit(null);
         }}
       />
+
+      {/* Mobile Floating Action Button (+ नया ग्राहक) */}
+      <div className="sm:hidden fixed bottom-6 right-4 z-30 animate-in slide-in-from-bottom-5 duration-200">
+        <button
+          onClick={() => {
+            setCustomerToEdit(null);
+            setShowCustomerForm(true);
+          }}
+          className="py-3 px-4.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 active:scale-95 text-white font-black text-sm rounded-full shadow-2xl shadow-emerald-950/50 flex items-center gap-2 border-2 border-emerald-300/40 cursor-pointer"
+        >
+          <UserPlus className="w-5 h-5" />
+          <span>+ नया ग्राहक</span>
+        </button>
+      </div>
     </div>
   );
 };

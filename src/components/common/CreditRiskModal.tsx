@@ -29,10 +29,10 @@ export const CreditRiskModal: React.FC<CreditRiskModalProps> = ({
   const overLimitBy = projectedDue - creditLimit;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-500 max-w-lg w-full overflow-hidden scale-100 transition-all">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-500 max-w-lg w-full overflow-hidden scale-100 transition-all flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
               <ShieldAlert className="w-7 h-7 text-white animate-bounce" />
@@ -55,7 +55,7 @@ export const CreditRiskModal: React.FC<CreditRiskModalProps> = ({
         </div>
 
         {/* Body content */}
-        <div className="p-5 sm:p-6 space-y-4">
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-slate-800 text-sm sm:text-base">
             <p className="font-medium text-red-900 mb-2">
               ⚠️ <span className="font-bold">{customer.name}</span> की उधारी सीमा ({formatCurrency(creditLimit)}) पहले ही पार हो चुकी है!
@@ -98,7 +98,7 @@ export const CreditRiskModal: React.FC<CreditRiskModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-3">
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row gap-2 sm:gap-3 shrink-0 sticky bottom-0 z-10">
           <button
             onClick={onCancel}
             className="flex-1 py-3 px-4 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all"

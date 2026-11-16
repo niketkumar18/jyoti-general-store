@@ -84,10 +84,10 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-emerald-800 to-green-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-emerald-300" />
             <h3 className="font-extrabold text-base sm:text-lg">
@@ -102,94 +102,96 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              {t('customer_name')} *
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="उदा. रमेश कुमार (वर्मा जी)"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500"
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              {t('customer_mobile')}
-            </label>
-            <input
-              type="tel"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              placeholder="10 अंकों का मोबाइल नंबर"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              {t('credit_limit')} (₹) *
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {t('customer_name')} *
+              </label>
               <input
-                type="number"
+                type="text"
                 required
-                min="0"
-                step="500"
-                value={creditLimit}
-                onChange={(e) => setCreditLimit(parseFloat(e.target.value) || 0)}
-                className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-extrabold text-emerald-800 focus:ring-2 focus:ring-emerald-500"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="उदा. रमेश कुमार (वर्मा जी)"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500"
+                autoFocus
               />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              इस सीमा से अधिक उधारी होने पर सिस्टम 🔴 रेड अलर्ट चेतावनी देगा।
-            </p>
-          </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              पता / गली / मोहल्ला (Address)
-            </label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="उदा. मकान नं. 14, गली 3"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {t('customer_mobile')}
+              </label>
+              <input
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="10 अंकों का मोबाइल नंबर"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              अतिरिक्त टिप्पणी (Notes)
-            </label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="उदा. हर महीने की 1 तारीख को भुगतान करते हैं"
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
-            />
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                {t('credit_limit')} (₹) *
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-xs font-bold text-slate-400">₹</span>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  step="500"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(parseFloat(e.target.value) || 0)}
+                  className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-extrabold text-emerald-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                इस सीमा से अधिक उधारी होने पर सिस्टम 🔴 रेड अलर्ट चेतावनी देगा।
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                पता / गली / मोहल्ला (Address)
+              </label>
+              <input
+                type="text"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="उदा. मकान नं. 14, गली 3"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                अतिरिक्त टिप्पणी (Notes)
+              </label>
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="उदा. हर महीने की 1 तारीख को भुगतान करते हैं"
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-2 flex gap-3">
+          <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 sticky bottom-0 z-10">
             <button
               type="button"
               onClick={onClose}
-              className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50"
+              className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 cursor-pointer"
             >
               रद्द करें
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
               <UserCheck className="w-4 h-4" />
               <span>ग्राहक सुरक्षित करें</span>

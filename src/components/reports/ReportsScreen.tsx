@@ -373,7 +373,7 @@ export const ReportsScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-2 sm:p-5 space-y-4 sm:space-y-6">
+    <div className="max-w-7xl mx-auto p-2 sm:p-5 space-y-4 sm:space-y-6 pb-24 sm:pb-8">
       {/* Top Header & Tab Navigation Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
@@ -389,11 +389,11 @@ export const ReportsScreen: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             {/* Download CSV Report */}
             <button
               onClick={handleExport}
-              className="py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-sm flex items-center gap-2 transition-all cursor-pointer"
+              className="w-full sm:w-auto py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>
@@ -409,10 +409,10 @@ export const ReportsScreen: React.FC = () => {
 
         {/* 3 Main View Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1">
+          <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab('DAILY')}
-              className={`px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 lg:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'DAILY'
                   ? 'bg-white text-emerald-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -424,7 +424,7 @@ export const ReportsScreen: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('MONTHLY')}
-              className={`px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 lg:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'MONTHLY'
                   ? 'bg-white text-emerald-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -436,7 +436,7 @@ export const ReportsScreen: React.FC = () => {
 
             <button
               onClick={() => setActiveTab('YEARLY')}
-              className={`px-3.5 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 lg:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeTab === 'YEARLY'
                   ? 'bg-white text-emerald-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -448,11 +448,13 @@ export const ReportsScreen: React.FC = () => {
           </div>
 
           {/* Contextual Date / Month / Year Picker */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {activeTab === 'DAILY' && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5">
-                <Calendar className="w-4 h-4 text-slate-500" />
-                <span className="text-xs font-semibold text-slate-600">तारीख चुनें:</span>
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 w-full sm:w-auto justify-between sm:justify-start">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-600">तारीख चुनें:</span>
+                </div>
                 <input
                   type="date"
                   value={selectedDate}
@@ -463,12 +465,12 @@ export const ReportsScreen: React.FC = () => {
             )}
 
             {activeTab === 'MONTHLY' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 {/* Month Select */}
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
+                  className="flex-1 sm:flex-initial bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
                 >
                   {(language === 'hi' ? MONTH_NAMES_HI : MONTH_NAMES_EN).map((name, idx) => (
                     <option key={idx} value={idx}>
@@ -481,7 +483,7 @@ export const ReportsScreen: React.FC = () => {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
+                  className="flex-1 sm:flex-initial bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
                 >
                   {[2024, 2025, 2026, 2027, 2028].map((y) => (
                     <option key={y} value={y}>
@@ -496,7 +498,7 @@ export const ReportsScreen: React.FC = () => {
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
+                className="w-full sm:w-auto bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-bold text-slate-900 cursor-pointer focus:outline-none"
               >
                 {[2024, 2025, 2026, 2027, 2028].map((y) => (
                   <option key={y} value={y}>

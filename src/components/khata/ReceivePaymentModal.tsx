@@ -94,10 +94,10 @@ export const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-700 to-green-800 text-white p-4 sm:p-5 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-emerald-700 to-green-800 text-white p-4 sm:p-5 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-emerald-600 rounded-xl">
               <ArrowDownLeft className="w-5 h-5 text-white" />
@@ -115,7 +115,8 @@ export const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleReceivePayment} className="p-5 space-y-4">
+        <form onSubmit={handleReceivePayment} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
           {/* Current Due Banner */}
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex justify-between items-center text-sm">
             <span className="text-amber-900 font-bold">वर्तमान कुल उधारी:</span>
@@ -220,27 +221,28 @@ export const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
               {formatCurrency(newBalance)}
             </span>
           </div>
+        </div>
 
-          {/* Footer Actions */}
-          <div className="pt-2 flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50"
-            >
-              रद्द करें
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2"
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>{isSubmitting ? 'जमा हो रहा है...' : 'जमा सुरक्षित करें'}</span>
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Footer Actions */}
+        <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex gap-3 shrink-0 sticky bottom-0 z-10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="py-2.5 px-4 border border-slate-300 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-100 cursor-pointer"
+          >
+            रद्द करें
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all"
+          >
+            <CheckCircle className="w-4 h-4" />
+            <span>{isSubmitting ? 'जमा हो रहा है...' : 'जमा सुरक्षित करें'}</span>
+          </button>
+        </div>
+      </form>
     </div>
+  </div>
   );
 };

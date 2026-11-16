@@ -87,10 +87,10 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[94dvh]">
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+        <div className="bg-slate-900 text-white p-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Camera className="w-5 h-5 text-emerald-400" />
             <h3 className="font-bold text-base">
@@ -106,7 +106,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         </div>
 
         {/* Viewport */}
-        <div className="p-4 bg-slate-100 flex flex-col items-center justify-center min-h-[300px]">
+        <div className="p-3 sm:p-4 bg-slate-100 flex flex-col items-center justify-center overflow-y-auto flex-1 min-h-0">
           {error ? (
             <div className="text-center p-6 space-y-3">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
@@ -135,7 +135,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 bg-white border-t border-slate-200 flex justify-end">
+        <div className="p-3 bg-white border-t border-slate-200 flex justify-end shrink-0 sticky bottom-0 z-10">
           <button
             onClick={onClose}
             className="px-4 py-2 border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-xl"

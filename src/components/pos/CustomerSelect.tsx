@@ -115,8 +115,8 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
 
       {/* Dropdown Modal / Popover */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[90dvh]">
             {/* Header */}
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
               <h3 className="font-bold text-base flex items-center gap-2">
@@ -161,7 +161,7 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
             </div>
 
             {/* Customer List */}
-            <div className="overflow-y-auto flex-1 divide-y divide-slate-100 p-2">
+            <div className="overflow-y-auto flex-1 min-h-0 divide-y divide-slate-100 p-2">
               {filteredCustomers.length > 0 ? (
                 filteredCustomers.map((c) => (
                   <button
@@ -170,7 +170,7 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
                       onSelectCustomer(c);
                       setIsOpen(false);
                     }}
-                    className="w-full p-2.5 hover:bg-slate-50 rounded-xl flex items-center justify-between text-left transition-all"
+                    className="w-full p-2.5 hover:bg-slate-50 rounded-xl flex items-center justify-between text-left transition-all cursor-pointer"
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -198,7 +198,7 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
             </div>
 
             {/* On-the-fly Add Customer Section */}
-            <div className="p-3 bg-slate-50 border-t border-slate-200">
+            <div className="p-3 bg-slate-50 border-t border-slate-200 shrink-0">
               {!showQuickAdd ? (
                 <button
                   onClick={() => {

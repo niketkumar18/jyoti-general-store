@@ -70,7 +70,7 @@ export const InventoryScreen: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 pb-24 sm:pb-6">
       {/* Top Banner / Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Total Items */}
@@ -142,15 +142,16 @@ export const InventoryScreen: React.FC = () => {
             />
           </div>
 
-          {/* Category Filter Dropdown */}
-          <div className="flex items-center gap-2">
+          {/* Controls: Category Filter + Manage + Add Product */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full md:w-auto">
+            {/* Category Dropdown */}
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 cursor-pointer focus:ring-2 focus:ring-emerald-500"
+              className="flex-1 sm:flex-initial py-2 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 cursor-pointer focus:ring-2 focus:ring-emerald-500 min-w-[130px]"
             >
               <option value="all">
-                {language === 'hi' ? '📂 सभी श्रेणियां (All)' : '📂 All Categories'}
+                {language === 'hi' ? '📂 सभी श्रेणियां' : '📂 All Categories'}
               </option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -162,7 +163,7 @@ export const InventoryScreen: React.FC = () => {
             {/* Manage Categories Button */}
             <button
               onClick={() => setIsCategoryModalOpen(true)}
-              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs sm:text-sm font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs sm:text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
             >
               <Layers className="w-4 h-4 text-emerald-600" />
               <span>{language === 'hi' ? 'श्रेणियां (+ नई)' : 'Categories (+)'}</span>
@@ -174,9 +175,9 @@ export const InventoryScreen: React.FC = () => {
                 setItemToEdit(null);
                 setIsFormOpen(true);
               }}
-              className="py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-all"
+              className="w-full sm:w-auto py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-all"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 shrink-0" />
               <span>{t('add_10sec_item')}</span>
             </button>
           </div>
@@ -331,6 +332,20 @@ export const InventoryScreen: React.FC = () => {
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
       />
+
+      {/* Mobile Floating Action Button (+ नया सामान) - Always visible when scrolling on mobile */}
+      <div className="sm:hidden fixed bottom-6 right-4 z-30 animate-in slide-in-from-bottom-5 duration-200">
+        <button
+          onClick={() => {
+            setItemToEdit(null);
+            setIsFormOpen(true);
+          }}
+          className="py-3 px-4.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 active:scale-95 text-white font-black text-sm rounded-full shadow-2xl shadow-emerald-950/50 flex items-center gap-2 border-2 border-emerald-300/40 cursor-pointer"
+        >
+          <Plus className="w-5 h-5 stroke-[3]" />
+          <span>+ नया सामान</span>
+        </button>
+      </div>
     </div>
   );
 };
