@@ -20,7 +20,9 @@ import {
   FileSpreadsheet,
   Zap,
   Camera,
-  Trash2
+  Trash2,
+  Smartphone,
+  Laptop
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage } from '../../context/LanguageContext';
@@ -39,6 +41,7 @@ export const SettingsScreen: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testSyncMsg, setTestSyncMsg] = useState<string | null>(null);
   const [isTestSyncing, setIsTestSyncing] = useState(false);
+  const [copiedMobileLink, setCopiedMobileLink] = useState(false);
 
   const handleTestAndFullSync = async () => {
     const check = validateWebhookUrl(formData.googleSheetsUrl);
@@ -542,7 +545,7 @@ export const SettingsScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowGuideModal(true)}
-              className="text-xs font-bold text-emerald-800 underline flex items-center gap-1 hover:text-emerald-950"
+              className="text-xs font-bold text-emerald-800 underline flex items-center gap-1 hover:text-emerald-950 cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" />
               <span>{t('sheets_guide_btn')} (कोड व 2-मिनट सेटअप स्टेप्स)</span>
@@ -558,6 +561,74 @@ export const SettingsScreen: React.FC = () => {
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
+        </div>
+
+        {/* Section: Multi-Device 2-Way Sync (Mobile <-> Laptop) */}
+        <div className="bg-white rounded-2xl border-2 border-emerald-500/40 p-4 sm:p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h3 className="font-bold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+              <div className="flex items-center gap-1 text-emerald-700">
+                <Smartphone className="w-5 h-5" />
+                <span className="text-xs">⇄</span>
+                <Laptop className="w-5 h-5" />
+              </div>
+              <span>मोबाइल एवं लैपटॉप 2-तरफा सिंक (Multi-Device Live Sync)</span>
+            </h3>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+              🟢 ऑटो-सिंक सक्रिय
+            </span>
+          </div>
+
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            मोबाइल पर बना बिल तुरंत लैपटॉप पर दिखेगा और लैपटॉप पर बना बिल मोबाइल पर! दोनों डिवाइस आपकी गूगल शीट के जरिए 100% मुफ्त में आपस में रियल-टाइम सिंक रहते हैं।
+          </p>
+
+          {/* QR Code to Link Mobile Device */}
+          {formData.googleSheetsUrl && (
+            <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center gap-4">
+              <div className="p-2 bg-white rounded-xl border border-emerald-300 shadow-sm shrink-0">
+                <QRCodeSVG
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/?syncUrl=${encodeURIComponent(formData.googleSheetsUrl)}` : ''}
+                  size={110}
+                />
+              </div>
+
+              <div className="space-y-2 text-center sm:text-left flex-1">
+                <h4 className="font-extrabold text-sm text-emerald-950 flex items-center justify-center sm:justify-start gap-1.5">
+                  <Smartphone className="w-4 h-4 text-emerald-600" />
+                  <span>मोबाइल से QR स्कैन करें (1-टैप में मोबाइल लिंक):</span>
+                </h4>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  अपने मोबाइल कैमरे से यह QR स्कैन करें। आपका मोबाइल तुरंत इसी दुकान व गूगल शीट से लिंक हो जाएगा — कोई लंबा लिंक टाइप करने की ज़रूरत नहीं!
+                </p>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const link = `${window.location.origin}/?syncUrl=${encodeURIComponent(formData.googleSheetsUrl || '')}`;
+                      navigator.clipboard.writeText(link);
+                      setCopiedMobileLink(true);
+                      setTimeout(() => setCopiedMobileLink(false), 2500);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  >
+                    {copiedMobileLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedMobileLink ? 'लिंक कॉपी हो गया!' : 'मोबाइल लिंक कॉपी करें'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={syncNow}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                    <span>{isSyncing ? 'सिंक हो रहा है...' : '🔄 अभी 2-तरफा सिंक करें (Sync Now)'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Section 4: Backup & Restore */}

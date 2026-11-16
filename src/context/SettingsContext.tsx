@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ShopSettings } from '../types';
-import { initialSettings, initializeDatabaseIfEmpty } from '../db/seedData';
+import { initialSettings, initializeDatabaseIfEmpty, DEFAULT_GOOGLE_SHEETS_URL } from '../db/seedData';
 import { db } from '../db';
-import { syncPendingToGoogleSheets, syncFullDatabaseToGoogleSheets } from '../utils/googleSheetsSync';
+import { syncTwoWay, syncPendingToGoogleSheets, syncFullDatabaseToGoogleSheets } from '../utils/googleSheetsSync';
 
 interface SettingsContextType {
   settings: ShopSettings;
@@ -19,6 +19,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [settings, setSettings] = useState<ShopSettings>(initialSettings);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const isSyncingRef = useRef(false);
+  const settingsRef = useRef(settings);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -30,8 +36,40 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Initialize Database and load settings
     initializeDatabaseIfEmpty().then(async () => {
       const record = await db.settings.get('shop_settings');
+      let effective: ShopSettings = { ...initialSettings };
       if (record && record.value) {
-        setSettings({ ...initialSettings, ...record.value });
+        effective = { ...initialSettings, ...record.value };
+      }
+
+      // Ensure default Google Sheets URL is configured if empty
+      if (!effective.googleSheetsUrl) {
+        effective.googleSheetsUrl = DEFAULT_GOOGLE_SHEETS_URL;
+        effective.autoSync = true;
+        await db.settings.put({ key: 'shop_settings', value: effective });
+      }
+
+      // Check URL query parameters for ?syncUrl=...
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const paramSyncUrl = params.get('syncUrl');
+        const paramSheetUrl = params.get('sheetUrl');
+        if (paramSyncUrl) {
+          effective.googleSheetsUrl = paramSyncUrl;
+          if (paramSheetUrl) effective.googleSheetDocumentUrl = paramSheetUrl;
+          effective.autoSync = true;
+          await db.settings.put({ key: 'shop_settings', value: effective });
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      setSettings(effective);
+      settingsRef.current = effective;
+
+      // Initial 2-way sync on launch to fetch latest bills from other devices
+      if (effective.googleSheetsUrl && navigator.onLine) {
+        triggerSilentTwoWaySync(effective.googleSheetsUrl, effective.googleSheetDocumentUrl);
       }
     });
 
@@ -41,19 +79,71 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
+  // Helper for silent background 2-way sync
+  const triggerSilentTwoWaySync = async (url: string, sheetDocUrl?: string) => {
+    if (isSyncingRef.current || !url || !navigator.onLine) return;
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+    try {
+      const res = await syncTwoWay(url, sheetDocUrl);
+      if (res.success) {
+        setSettings((prev) => ({ ...prev, lastSyncedAt: Date.now() }));
+      }
+    } catch (e) {
+      // silent background error
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  };
+
+  // Auto-sync on window focus or tab visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && settingsRef.current.googleSheetsUrl && navigator.onLine) {
+        triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
+      }
+    };
+
+    const handleFocus = () => {
+      if (settingsRef.current.googleSheetsUrl && navigator.onLine) {
+        triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    // Periodic 2-way sync every 30 seconds
+    const interval = setInterval(() => {
+      if (settingsRef.current.autoSync && settingsRef.current.googleSheetsUrl && navigator.onLine) {
+        triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
+      }
+    }, 30000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
+
   const updateSettings = async (newValues: Partial<ShopSettings>) => {
     const updated = { ...settings, ...newValues };
     setSettings(updated);
+    settingsRef.current = updated;
     await db.settings.put({ key: 'shop_settings', value: updated });
   };
 
+  // Manual 2-way sync (called when user clicks ↻ Sync Now button in Navbar)
   const syncNow = async (): Promise<string> => {
     if (!settings.googleSheetsUrl) {
       return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
     }
+    isSyncingRef.current = true;
     setIsSyncing(true);
     try {
-      const res = await syncPendingToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
+      const res = await syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
       if (res.success) {
         await updateSettings({ lastSyncedAt: Date.now() });
       }
@@ -61,6 +151,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (e: any) {
       return e?.message || 'सिंक विफल रहा';
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
     }
   };
@@ -69,6 +160,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!settings.googleSheetsUrl) {
       return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
     }
+    isSyncingRef.current = true;
     setIsSyncing(true);
     try {
       const res = await syncFullDatabaseToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
@@ -79,6 +171,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } catch (e: any) {
       return e?.message || 'सिंक विफल रहा';
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
     }
   };
