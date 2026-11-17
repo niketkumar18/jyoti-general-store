@@ -1,8 +1,10 @@
 import React from 'react';
 import { 
+  LayoutDashboard,
   ShoppingCart, 
   Package, 
   BookOpen, 
+  Building2,
   BarChart3, 
   Settings, 
   RefreshCw, 
@@ -14,7 +16,7 @@ import {
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 
-export type ActiveTab = 'pos' | 'inventory' | 'khata' | 'reports' | 'settings';
+export type ActiveTab = 'dashboard' | 'pos' | 'inventory' | 'khata' | 'vendors' | 'reports' | 'settings';
 
 interface NavbarProps {
   activeTab: ActiveTab;
@@ -36,9 +38,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const navItems: Array<{ id: ActiveTab; label: string; icon: React.ReactNode }> = [
+    { id: 'dashboard', label: t('nav_dashboard'), icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'pos', label: t('nav_pos'), icon: <ShoppingCart className="w-5 h-5" /> },
     { id: 'inventory', label: t('nav_inventory'), icon: <Package className="w-5 h-5" /> },
     { id: 'khata', label: t('nav_khata'), icon: <BookOpen className="w-5 h-5" /> },
+    { id: 'vendors', label: t('nav_vendors'), icon: <Building2 className="w-5 h-5" /> },
     { id: 'reports', label: t('nav_reports'), icon: <BarChart3 className="w-5 h-5" /> },
     { id: 'settings', label: t('nav_settings'), icon: <Settings className="w-5 h-5" /> },
   ];
@@ -48,13 +52,17 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Top Bar: Brand, Status, Sync, Lang */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
         {/* Brand / Shop Identity */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-md shadow-emerald-950/40 border border-emerald-300/30">
+        <div 
+          onClick={() => setActiveTab('dashboard')}
+          className="flex items-center gap-3 cursor-pointer group select-none"
+          title="डैशबोर्ड (होम) पर जाएं"
+        >
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-green-400 flex items-center justify-center shadow-md shadow-emerald-950/40 border border-emerald-300/30 group-hover:scale-105 transition-transform">
             <Store className="w-6 h-6 text-slate-950 font-black" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-white">
+              <span className="font-extrabold text-lg sm:text-xl tracking-tight text-white group-hover:text-emerald-300 transition-colors">
                 DEN <span className="text-emerald-300 font-semibold text-xs sm:text-sm">किराना POS</span>
               </span>
               <span className="hidden md:inline-block px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider bg-emerald-800/80 text-emerald-200 rounded border border-emerald-700">

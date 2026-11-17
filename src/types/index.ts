@@ -155,7 +155,16 @@ export interface VendorLedgerEntry {
   itemQuantity?: number;
   itemUnit?: UnitType;
   unitCostPrice?: number;
+  items?: Array<{
+    name: string;
+    quantity: number;
+    unit: UnitType;
+    costPrice: number;
+    total: number;
+    itemId?: number;
+  }>;
   billNumber?: string; // Vendor bill / challan number
+  billImageUrl?: string; // Uploaded photo/scan of vendor bill (Base64 data URL)
   description: string;
   runningBalance: number; // Outstanding balance owed to vendor after this transaction
   syncedToGoogle?: boolean;

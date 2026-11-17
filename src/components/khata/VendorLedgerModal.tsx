@@ -15,7 +15,10 @@ import {
   Tag,
   ArrowDownLeft,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Download,
+  ExternalLink
 } from 'lucide-react';
 import type { Vendor, VendorLedgerEntry } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -44,6 +47,7 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'PURCHASE' | 'PAYMENT'>('ALL');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [selectedBillImage, setSelectedBillImage] = useState<string | null>(null);
 
   // Live query for current vendor state (so balance updates immediately)
   const currentVendor = useLiveQuery(
@@ -297,6 +301,17 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
                                 बिल #{entry.billNumber}
                               </span>
                             )}
+                            {entry.billImageUrl && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBillImage(entry.billImageUrl!)}
+                                className="text-[11px] bg-purple-100 hover:bg-purple-200 text-purple-900 font-extrabold px-2 py-0.5 rounded flex items-center gap-1 transition-colors cursor-pointer"
+                                title="सप्लायर का बिल फोटो देखें"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-purple-700" />
+                                <span>📸 बिल फोटो देखें</span>
+                              </button>
+                            )}
                           </div>
 
                           {/* Item or description */}
@@ -404,6 +419,43 @@ export const VendorLedgerModal: React.FC<VendorLedgerModalProps> = ({
         vendor={currentVendor}
         onClose={() => setShowPaymentModal(false)}
       />
+
+      {/* Bill Image Viewer Modal */}
+      {selectedBillImage && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-sm animate-in fade-in">
+          <div className="relative max-w-3xl w-full max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-purple-400" />
+                <h3 className="font-black text-sm sm:text-base">सप्लायर बिल / पर्चा फोटो</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={selectedBillImage}
+                  download="Vendor_Bill.jpg"
+                  className="py-1 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>डाउनलोड</span>
+                </a>
+                <button
+                  onClick={() => setSelectedBillImage(null)}
+                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-white/10"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto p-3 flex items-center justify-center bg-black/40">
+              <img
+                src={selectedBillImage}
+                alt="Full Vendor Bill"
+                className="max-h-[75vh] w-auto object-contain rounded-xl shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,10 +2,12 @@ export type Language = 'hi' | 'en';
 
 export const translations = {
   // Navigation
+  nav_dashboard: { hi: 'डैशबोर्ड (होम)', en: 'Dashboard' },
   nav_pos: { hi: 'नया बिल (POS)', en: 'New Bill (POS)' },
-  nav_inventory: { hi: 'कैटलॉग / स्टॉक', en: 'Inventory' },
-  nav_khata: { hi: 'खाता / उधारी', en: 'Customer Khata' },
-  nav_reports: { hi: 'वार्षिक रिपोर्ट', en: 'Reports' },
+  nav_inventory: { hi: 'स्टॉक / सामान', en: 'Stock & Items' },
+  nav_khata: { hi: 'ग्राहक खाता', en: 'Customer Khata' },
+  nav_vendors: { hi: 'सप्लायर / महाजन', en: 'Vendors & Stock' },
+  nav_reports: { hi: 'मुनाफा रिपोर्ट', en: 'Reports' },
   nav_settings: { hi: 'सेटिंग्स व सिंक', en: 'Settings & Sync' },
   
   // App Header

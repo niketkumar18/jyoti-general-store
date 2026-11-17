@@ -95,7 +95,37 @@ export const VendorKhataView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-4 pb-24 sm:pb-6">
+      {/* Top Section Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center border border-indigo-400/20">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-lg sm:text-xl font-black tracking-tight text-white">
+              सप्लायर व स्टॉक प्रबंधन (Vendor & Stock Management)
+            </h1>
+            <p className="text-xs text-slate-300 mt-0.5">
+              थोक महाजनों का हिसाब, माल खरीद बिल फोटो अपलोड व देनदारी ट्रैकिंग
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setSelectedVendorForPurchase(null);
+              setShowGlobalPurchaseModal(true);
+            }}
+            className="py-2.5 px-4 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-black rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <PackagePlus className="w-4 h-4" />
+            <span>+ नया माल खरीद व बिल अपलोड</span>
+          </button>
+        </div>
+      </div>
+
       {/* Metrics Banner */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         {/* Total Vendor Due (देना है) */}
@@ -417,6 +447,20 @@ export const VendorKhataView: React.FC = () => {
           setVendorToEdit(null);
         }}
       />
+
+      {/* Mobile Floating Action Button (+ नया माल खरीद) */}
+      <div className="sm:hidden fixed bottom-6 right-4 z-30 animate-in slide-in-from-bottom-5 duration-200">
+        <button
+          onClick={() => {
+            setSelectedVendorForPurchase(null);
+            setShowGlobalPurchaseModal(true);
+          }}
+          className="py-3 px-4.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 active:scale-95 text-white font-black text-sm rounded-full shadow-2xl shadow-indigo-950/50 flex items-center gap-2 border-2 border-indigo-300/40 cursor-pointer"
+        >
+          <PackagePlus className="w-5 h-5" />
+          <span>+ नया माल खरीद</span>
+        </button>
+      </div>
     </div>
   );
 };

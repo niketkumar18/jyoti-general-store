@@ -11,7 +11,12 @@ import {
   Plus, 
   ArrowRight,
   Sparkles,
-  Calculator
+  Calculator,
+  Camera,
+  Upload,
+  ImageIcon,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { db } from '../../db';
 import type { Vendor, InventoryItem, UnitType } from '../../types';
@@ -55,8 +60,27 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
   const [paidAmount, setPaidAmount] = useState<number | ''>(200);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'UPI' | 'BANK'>('CASH');
   const [billNumber, setBillNumber] = useState('');
+  const [billImage, setBillImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert('फोटो का साइज 8MB से कम होना चाहिए');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setBillImage(result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Quick Add Vendor inline state
   const [showQuickAddVendor, setShowQuickAddVendor] = useState(false);
@@ -210,6 +234,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
         itemUnit: unit,
         unitCostPrice: calculatedUnitCost,
         billNumber: billNumber.trim() || undefined,
+        billImageUrl: billImage || undefined,
         description: `माल खरीद: ${finalItemName} (${numQty} ${unit} @ ₹${calculatedUnitCost}/${unit}) — नकद: ₹${numPaid}, उधार: ₹${calculatedDue}`,
         runningBalance: newBal,
         createdAt: Date.now()
@@ -598,6 +623,61 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                   className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs font-mono"
                 />
               </div>
+            </div>
+
+            {/* 📸 Vendor Bill Image / Receipt Upload */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-indigo-600" />
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    सप्लायर बिल / पर्चा फोटो अपलोड (Bill Photo)
+                  </span>
+                </div>
+                {billImage && (
+                  <button
+                    type="button"
+                    onClick={() => setBillImage(null)}
+                    className="text-[11px] font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>हटाएं</span>
+                  </button>
+                )}
+              </div>
+
+              {billImage ? (
+                <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-black/5 p-2 flex items-center justify-center">
+                  <img
+                    src={billImage}
+                    alt="Vendor Bill"
+                    className="max-h-48 w-auto object-contain rounded-lg shadow-sm"
+                  />
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-4 text-center cursor-pointer transition-colors bg-white group"
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-extrabold text-slate-800 mt-2">
+                    बिल की फोटो खींचें या गैलरी से चुनें
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    सप्लायर का पक्का / कच्चा बिल रिकॉर्ड में सुरक्षित रखें
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Notes */}
