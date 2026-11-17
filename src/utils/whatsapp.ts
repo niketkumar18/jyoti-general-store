@@ -1,4 +1,4 @@
-import type { Invoice, Customer, ShopSettings } from '../types';
+import type { Invoice, Customer, ShopSettings, Vendor, VendorLedgerEntry } from '../types';
 import { formatCurrency, formatDateTime } from './formatters';
 
 export function createWhatsAppBillMessage(
@@ -87,6 +87,54 @@ export function createWhatsAppPaymentReminder(
 export function openWhatsAppReminder(customer: Customer, shop: ShopSettings) {
   const message = createWhatsAppPaymentReminder(customer, shop);
   const cleanMobile = (customer.mobile || '').replace(/\D/g, '');
+  let phoneParam = '';
+  if (cleanMobile.length === 10) {
+    phoneParam = `phone=91${cleanMobile}&`;
+  } else if (cleanMobile.length > 10) {
+    phoneParam = `phone=${cleanMobile}&`;
+  }
+  const encodedText = encodeURIComponent(message);
+  const url = `https://api.whatsapp.com/send?${phoneParam}text=${encodedText}`;
+  window.open(url, '_blank');
+}
+
+export function createWhatsAppVendorLedgerMessage(
+  vendor: Vendor,
+  ledgerEntries?: VendorLedgerEntry[],
+  shop?: ShopSettings
+): string {
+  const shopName = shop?.shopName || 'JYOTI GENERAL STORE';
+  const firm = vendor.firmName ? `${vendor.firmName} (${vendor.name})` : vendor.name;
+  let msg = `*नमस्ते ${firm} जी! 🙏*\n\n`;
+  msg += `*${shopName}* से आपका बहीखाता विवरण:\n\n`;
+  msg += `📦 *कुल माल खरीद:* ${formatCurrency(vendor.totalPurchased || 0)}\n`;
+  msg += `💰 *कुल भुगतान किया:* ${formatCurrency(vendor.totalPaid || 0)}\n`;
+  msg += `⚠️ *शेष बकाया (देना बाकी):* ${formatCurrency(vendor.currentBalance || 0)}\n\n`;
+  
+  if (ledgerEntries && ledgerEntries.length > 0) {
+    msg += `*हालिया लेन-देन (Recent Transactions):*\n`;
+    const recent = ledgerEntries.slice(0, 5);
+    recent.forEach((e, idx) => {
+      const typeStr = e.type === 'PURCHASE' ? '📦 खरीद' : '💰 भुगतान';
+      msg += `${idx + 1}. ${typeStr}: ${formatCurrency(e.amount)} (${new Date(e.createdAt).toLocaleDateString('hi-IN')})\n`;
+    });
+    msg += `\n`;
+  }
+
+  if (shop?.mobile) {
+    msg += `📞 *दुकानदार संपर्क:* ${shop.mobile}\n`;
+  }
+  msg += `\n🙏 *धन्यवाद! जय श्री राम।*`;
+  return msg;
+}
+
+export function openWhatsAppVendorLedger(
+  vendor: Vendor,
+  ledgerEntries?: VendorLedgerEntry[],
+  shop?: ShopSettings
+) {
+  const message = createWhatsAppVendorLedgerMessage(vendor, ledgerEntries, shop);
+  const cleanMobile = (vendor.mobile || '').replace(/\D/g, '');
   let phoneParam = '';
   if (cleanMobile.length === 10) {
     phoneParam = `phone=91${cleanMobile}&`;

@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { InventoryItem, Customer, Invoice, LedgerEntry } from '../types';
+import type { InventoryItem, Customer, Invoice, LedgerEntry, Vendor, VendorLedgerEntry } from '../types';
 
 export interface AppSettingRecord {
   key: string;
@@ -11,6 +11,8 @@ export class DenDatabase extends Dexie {
   customers!: Table<Customer, number>;
   invoices!: Table<Invoice, number>;
   ledger!: Table<LedgerEntry, number>;
+  vendors!: Table<Vendor, number>;
+  vendorLedger!: Table<VendorLedgerEntry, number>;
   settings!: Table<AppSettingRecord, string>;
 
   constructor() {
@@ -20,6 +22,15 @@ export class DenDatabase extends Dexie {
       customers: '++id, name, mobile, riskLevel, currentBalance, updatedAt',
       invoices: '++id, invoiceNumber, customerId, customerMobile, paymentMethod, syncedToGoogle, createdAt',
       ledger: '++id, customerId, type, billId, syncedToGoogle, createdAt',
+      settings: 'key'
+    });
+    this.version(2).stores({
+      items: '++id, nameEn, nameHi, category, unit, barcode, stockQty, updatedAt',
+      customers: '++id, name, mobile, riskLevel, currentBalance, updatedAt',
+      invoices: '++id, invoiceNumber, customerId, customerMobile, paymentMethod, syncedToGoogle, createdAt',
+      ledger: '++id, customerId, type, billId, syncedToGoogle, createdAt',
+      vendors: '++id, name, mobile, firmName, currentBalance, updatedAt',
+      vendorLedger: '++id, vendorId, type, itemId, createdAt',
       settings: 'key'
     });
   }

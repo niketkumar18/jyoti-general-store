@@ -123,6 +123,45 @@ export interface LedgerEntry {
   createdAt: number;
 }
 
+export interface Vendor {
+  id?: number;
+  name: string; // e.g. "श्री राम ट्रेडर्स"
+  firmName?: string; // e.g. "श्री राम दाल व चीनी सप्लायर"
+  mobile: string; // e.g. "9826123456"
+  address?: string; // e.g. "अनाज मंडी, मेघपुर"
+  category?: string; // e.g. "दाल, चीनी, अनाज"
+  currentBalance: number; // Positive = Shopkeeper owes vendor (दुकानदार को देना है), 0 = चुकता
+  totalPurchased?: number; // Total stock purchased in ₹
+  totalPaid?: number; // Total payments made to vendor in ₹
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type VendorTransactionType = 'PURCHASE' | 'PAYMENT';
+
+export interface VendorLedgerEntry {
+  id?: number;
+  vendorId: number;
+  vendorName: string;
+  type: VendorTransactionType; // PURCHASE = माल खरीदा, PAYMENT = रुपये चुकाए
+  amount: number; // Total purchase cost or payment amount
+  paidAmount?: number; // Amount paid immediately
+  dueAmount?: number; // Remaining due added to vendor balance
+  paymentMode?: 'CASH' | 'UPI' | 'BANK' | 'CHEQUE';
+  // Product details if stock purchase
+  itemId?: number;
+  itemName?: string;
+  itemQuantity?: number;
+  itemUnit?: UnitType;
+  unitCostPrice?: number;
+  billNumber?: string; // Vendor bill / challan number
+  description: string;
+  runningBalance: number; // Outstanding balance owed to vendor after this transaction
+  syncedToGoogle?: boolean;
+  createdAt: number;
+}
+
 export interface ShopSettings {
   shopName: string;
   shopNameHi: string;

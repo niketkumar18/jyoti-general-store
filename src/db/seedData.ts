@@ -1,5 +1,5 @@
 import { db } from './index';
-import type { InventoryItem, Customer, ShopSettings } from '../types';
+import type { InventoryItem, Customer, ShopSettings, Vendor, VendorLedgerEntry } from '../types';
 
 export const DEFAULT_GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxEBvSKonGm_7fv5MMrSTdHJ2MAIp87JblYjrpCDk0ieEd-abJ9PDQ6-eUlpH_fCIJStw/exec';
 
@@ -125,6 +125,48 @@ export const sampleCustomers: Omit<Customer, 'id'>[] = [
   }
 ];
 
+export const sampleVendors: Omit<Vendor, 'id'>[] = [
+  {
+    name: 'श्री राम ट्रेडिंग कंपनी',
+    firmName: 'श्री राम दाल, चीनी व अनाज सप्लायर',
+    mobile: '9826112244',
+    address: 'दुकान नं. 12, नई अनाज मंडी, मेघपुर',
+    category: 'दाल, चीनी, अनाज',
+    currentBalance: 3200, // सप्लायर को देना बाकी है
+    totalPurchased: 15400,
+    totalPaid: 12200,
+    notes: 'चीनी और दाल के मुख्य थोक व्यापारी',
+    createdAt: Date.now() - 45 * 24 * 3600 * 1000,
+    updatedAt: Date.now()
+  },
+  {
+    name: 'अग्रवाल ऑयल्स डिपो',
+    firmName: 'फॉर्च्यून व अमूल डिस्ट्रीब्यूटर',
+    mobile: '9893556677',
+    address: 'स्टेशन रोड, मेघपुर',
+    category: 'तेल व घी',
+    currentBalance: 1550, // सप्लायर को देना बाकी है
+    totalPurchased: 18500,
+    totalPaid: 16950,
+    notes: 'फॉर्च्यून सरसों तेल और अमूल घी के अधिकृत डीलर',
+    createdAt: Date.now() - 30 * 24 * 3600 * 1000,
+    updatedAt: Date.now()
+  },
+  {
+    name: 'गुप्ता किराना एजेंसी',
+    firmName: 'गुप्ता ब्रदर्स एफएमसीजी',
+    mobile: '9425889900',
+    address: 'मेन मार्केट, मेघपुर',
+    category: 'मसाले, सर्फ, साबुन, बिस्कुट',
+    currentBalance: 0, // पूरा हिसाब चुकता
+    totalPurchased: 8200,
+    totalPaid: 8200,
+    notes: 'महीने के अंत में पूरा हिसाब चुकता हो जाता है',
+    createdAt: Date.now() - 20 * 24 * 3600 * 1000,
+    updatedAt: Date.now()
+  }
+];
+
 export async function initializeDatabaseIfEmpty() {
   const itemCount = await db.items.count();
   if (itemCount === 0) {
@@ -218,6 +260,69 @@ export async function initializeDatabaseIfEmpty() {
         runningBalance: 3200,
         syncedToGoogle: false,
         createdAt: now - 12 * day
+      }
+    ]);
+  }
+
+  // Vendors & Vendor Ledger
+  const vendorCount = await db.vendors.count();
+  if (vendorCount === 0) {
+    const vendorIds = await db.vendors.bulkAdd(sampleVendors as any, { allKeys: true });
+    const now = Date.now();
+    const day = 24 * 3600 * 1000;
+
+    // Seed realistic purchase entries (including Sugar purchase e.g. 10 kg total 500, paid 200, due 300)
+    await db.vendorLedger.bulkAdd([
+      {
+        vendorId: vendorIds[0] as number,
+        vendorName: 'श्री राम ट्रेडिंग कंपनी',
+        type: 'PURCHASE',
+        amount: 500,
+        paidAmount: 200,
+        dueAmount: 300,
+        paymentMode: 'CASH',
+        itemName: 'चीनी (सफेद दानेदार)',
+        itemQuantity: 10,
+        itemUnit: 'KG',
+        unitCostPrice: 50,
+        billNumber: 'SR-104',
+        description: 'माल खरीद: चीनी (10 KG @ ₹50/KG) - ₹200 नकद दिया, ₹300 उधार',
+        runningBalance: 300,
+        createdAt: now - 10 * day
+      },
+      {
+        vendorId: vendorIds[0] as number,
+        vendorName: 'श्री राम ट्रेडिंग कंपनी',
+        type: 'PURCHASE',
+        amount: 3500,
+        paidAmount: 600,
+        dueAmount: 2900,
+        paymentMode: 'UPI',
+        itemName: 'अरहर / तूर दाल',
+        itemQuantity: 25,
+        itemUnit: 'KG',
+        unitCostPrice: 140,
+        billNumber: 'SR-112',
+        description: 'माल खरीद: अरहर दाल (25 KG @ ₹140/KG)',
+        runningBalance: 3200,
+        createdAt: now - 3 * day
+      },
+      {
+        vendorId: vendorIds[1] as number,
+        vendorName: 'अग्रवाल ऑयल्स डिपो',
+        type: 'PURCHASE',
+        amount: 3100,
+        paidAmount: 1550,
+        dueAmount: 1550,
+        paymentMode: 'UPI',
+        itemName: 'फॉर्च्यून सरसों तेल (1L)',
+        itemQuantity: 20,
+        itemUnit: 'PACKET',
+        unitCostPrice: 155,
+        billNumber: 'AG-902',
+        description: 'माल खरीद: 20 पैकेट फॉर्च्यून सरसों तेल (आधा भुगतान किया)',
+        runningBalance: 1550,
+        createdAt: now - 5 * day
       }
     ]);
   }

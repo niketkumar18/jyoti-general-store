@@ -15,7 +15,10 @@ import {
   CalendarDays,
   Percent,
   CircleDollarSign,
-  Layers
+  Layers,
+  Building2,
+  Scale,
+  Package
 } from 'lucide-react';
 import { db } from '../../db';
 import { useLanguage } from '../../context/LanguageContext';
@@ -56,6 +59,31 @@ export const ReportsScreen: React.FC = () => {
   const ledgerEntries = useLiveQuery(() => db.ledger.toArray()) || [];
   const customers = useLiveQuery(() => db.customers.toArray()) || [];
   const inventoryItems = useLiveQuery(() => db.items.toArray()) || [];
+  const vendors = useLiveQuery(() => db.vendors.toArray()) || [];
+  const vendorLedgerEntries = useLiveQuery(() => db.vendorLedger.toArray()) || [];
+
+  // Dual Audit & Balance Sheet Metrics (Shop Solvency & Position)
+  const totalCustomerUdhar = useMemo(() => {
+    return customers.reduce((sum, c) => sum + (c.currentBalance > 0 ? c.currentBalance : 0), 0);
+  }, [customers]);
+
+  const totalVendorDue = useMemo(() => {
+    return vendors.reduce((sum, v) => sum + (v.currentBalance > 0 ? v.currentBalance : 0), 0);
+  }, [vendors]);
+
+  const totalStockAssetValue = useMemo(() => {
+    return inventoryItems.reduce((sum, it) => sum + ((it.costPrice || 0) * (it.stockQty || 0)), 0);
+  }, [inventoryItems]);
+
+  const totalStockPurchasesAllTime = useMemo(() => {
+    return vendors.reduce((sum, v) => sum + (v.totalPurchased || 0), 0);
+  }, [vendors]);
+
+  const totalSalesAllTime = useMemo(() => {
+    return invoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
+  }, [invoices]);
+
+  const netMarketPosition = (totalCustomerUdhar + totalStockAssetValue) - totalVendorDue;
 
   // Map of inventory items for costPrice fallback lookup
   const inventoryMap = useMemo(() => {
@@ -374,6 +402,117 @@ export const ReportsScreen: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-2 sm:p-5 space-y-4 sm:space-y-6 pb-24 sm:pb-8">
+      {/* Dual Financial Audit: Customer Credit vs Vendor Dues & Stock */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-slate-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-indigo-500/20 text-indigo-300 rounded-lg">
+              <Scale className="w-5 h-5" />
+            </span>
+            <div>
+              <h3 className="font-black text-sm sm:text-base tracking-tight text-white">
+                {language === 'hi' ? 'दुकान वित्तीय बैलेंस शीट (Audit & Net Position)' : 'Shop Financial Audit & Net Position'}
+              </h3>
+              <p className="text-[11px] text-slate-300">
+                {language === 'hi' 
+                  ? 'ग्राहक उधारी (लेना है) बनाम सप्लायर उधारी (देना है) व दुकान का कुल स्टॉक' 
+                  : 'Customer credit receivable vs Vendor credit payable & current stock inventory'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400">दुकान स्थिति:</span>
+            <span className={`px-2.5 py-1 rounded-full font-black text-xs ${
+              netMarketPosition >= 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+            }`}>
+              {netMarketPosition >= 0 ? '✅ सुरक्षित व मुनाफे में' : '⚠️ देनदारी अधिक'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
+          {/* 1. Customer Udhar (Receivable) */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-1.5 text-rose-300">
+              <Users className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                बाज़ार उधारी (लेना है)
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-rose-300 mt-1">
+              {formatCurrency(totalCustomerUdhar)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              {customers.filter(c => c.currentBalance > 0).length} ग्राहकों से
+            </p>
+          </div>
+
+          {/* 2. Vendor Udhar (Payable) */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-1.5 text-amber-300">
+              <Building2 className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                सप्लायर बकाया (देना है)
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-amber-300 mt-1">
+              {formatCurrency(totalVendorDue)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              {vendors.filter(v => v.currentBalance > 0).length} महाजनों को
+            </p>
+          </div>
+
+          {/* 3. Shop Stock Asset */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-1.5 text-blue-300">
+              <Package className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                मौजूदा स्टॉक संपत्ति
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-blue-200 mt-1">
+              {formatCurrency(totalStockAssetValue)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              {inventoryItems.length} सामान का लागत मूल्य
+            </p>
+          </div>
+
+          {/* 4. Total Stock Purchases */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-1.5 text-indigo-300">
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                कुल माल खरीद
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-indigo-200 mt-1">
+              {formatCurrency(totalStockPurchasesAllTime)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              सप्लायर्स से खरीदा गया कुल माल
+            </p>
+          </div>
+
+          {/* 5. Total Sales */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-1.5 text-emerald-300">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                कुल बिक्री (Sales)
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-emerald-300 mt-1">
+              {formatCurrency(totalSalesAllTime)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              दुकान से कुल काउंटर बिक्री
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Top Header & Tab Navigation Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">

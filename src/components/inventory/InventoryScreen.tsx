@@ -11,7 +11,8 @@ import {
   Trash2, 
   ArrowUpDown,
   Barcode,
-  Tag
+  Tag,
+  PackagePlus
 } from 'lucide-react';
 import { db } from '../../db';
 import type { InventoryItem } from '../../types';
@@ -21,6 +22,7 @@ import { useCategories } from '../../utils/categories';
 import { ItemFormModal } from './ItemFormModal';
 import { QuickStockAdjustModal } from './QuickStockAdjustModal';
 import { CategoryManageModal } from './CategoryManageModal';
+import { VendorPurchaseModal } from '../khata/VendorPurchaseModal';
 
 export const InventoryScreen: React.FC = () => {
   const { language, t } = useLanguage();
@@ -38,6 +40,7 @@ export const InventoryScreen: React.FC = () => {
   const [itemToAdjust, setItemToAdjust] = useState<InventoryItem | null>(null);
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isVendorPurchaseOpen, setIsVendorPurchaseOpen] = useState(false);
 
   // Filter items
   const filteredItems = items.filter((item) => {
@@ -167,6 +170,16 @@ export const InventoryScreen: React.FC = () => {
             >
               <Layers className="w-4 h-4 text-emerald-600" />
               <span>{language === 'hi' ? 'श्रेणियां (+ नई)' : 'Categories (+)'}</span>
+            </button>
+
+            {/* Vendor Stock Purchase Button */}
+            <button
+              onClick={() => setIsVendorPurchaseOpen(true)}
+              className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-all"
+              title="सप्लायर से नया माल खरीद कर स्टॉक व खाता अपडेट करें"
+            >
+              <PackagePlus className="w-4 h-4 shrink-0" />
+              <span>+ सप्लायर से माल खरीद</span>
             </button>
 
             {/* Quick Add Product Button */}
@@ -331,6 +344,12 @@ export const InventoryScreen: React.FC = () => {
       <CategoryManageModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
+      />
+
+      {/* Vendor Stock Purchase Modal */}
+      <VendorPurchaseModal
+        isOpen={isVendorPurchaseOpen}
+        onClose={() => setIsVendorPurchaseOpen(false)}
       />
 
       {/* Mobile Floating Action Button (+ नया सामान) - Always visible when scrolling on mobile */}

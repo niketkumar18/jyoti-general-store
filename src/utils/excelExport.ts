@@ -1,4 +1,4 @@
-import type { Invoice, Customer, LedgerEntry } from '../types';
+import type { Invoice, Customer, LedgerEntry, Vendor, VendorLedgerEntry } from '../types';
 
 export function exportDailyProfitToCsv(
   dateFormatted: string,
@@ -196,6 +196,77 @@ export function exportAllInvoicesToCsv(invoices: Invoice[]) {
 
   const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
   downloadBlob(csvContent, `DEN_Invoices_Export_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+}
+
+export function exportVendorKhataToCsv(
+  vendorOrVendors: Vendor | Vendor[],
+  ledgerEntries?: VendorLedgerEntry[]
+) {
+  if (Array.isArray(vendorOrVendors)) {
+    const headers = [
+      'सप्लायर / महाजन का नाम',
+      'फर्म / एजेंसी का नाम',
+      'मोबाइल नंबर',
+      'सप्लाई श्रेणी',
+      'कुल माल खरीद (Total Purchases ₹)',
+      'कुल भुगतान (Total Paid ₹)',
+      'वर्तमान बकाया (देना है - Balance ₹)',
+      'पता / विवरण'
+    ];
+
+    const rows = vendorOrVendors.map((v) => [
+      `"${v.name}"`,
+      `"${v.firmName || ''}"`,
+      `"${v.mobile}"`,
+      `"${v.category || ''}"`,
+      v.totalPurchased || 0,
+      v.totalPaid || 0,
+      v.currentBalance,
+      `"${v.address || ''}"`
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    downloadBlob(csvContent, `DEN_Vendors_Khata_List_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+  } else {
+    // Single vendor ledger export
+    const vendor = vendorOrVendors;
+    const headers = [
+      'तारीख व समय',
+      'लेन-देन प्रकार',
+      'विवरण / सामान',
+      'खरीद मात्रा व इकाई',
+      'कुल राशि (₹)',
+      'भुगतान किया (₹)',
+      'शेष उधारी / बकाया (₹)',
+      'भुगतान माध्यम',
+      'बिल / संदर्भ संख्या'
+    ];
+
+    const entries = ledgerEntries || [];
+    const rows = entries.map((e) => [
+      `"${new Date(e.createdAt).toLocaleString('hi-IN')}"`,
+      e.type === 'PURCHASE' ? '"माल खरीद (Purchase)"' : '"भुगतान (Payment)"',
+      `"${e.itemName || e.description || ''}"`,
+      e.itemQuantity ? `"${e.itemQuantity} ${e.itemUnit || ''}"` : '""',
+      e.amount || 0,
+      e.paidAmount || 0,
+      e.balanceAfter !== undefined ? e.balanceAfter : (e.dueAmount || 0),
+      `"${e.paymentMode || 'CASH'}"`,
+      `"${e.billNumber || e.referenceNo || ''}"`
+    ]);
+
+    const csvContent = '\uFEFF' + [
+      `"सप्लायर: ${vendor.firmName || vendor.name}"`,
+      `"मोबाइल: ${vendor.mobile}"`,
+      `"वर्तमान बकाया (देना है): ₹${vendor.currentBalance}"`,
+      '',
+      headers.join(','),
+      ...rows.map((r) => r.join(','))
+    ].join('\n');
+
+    const cleanName = (vendor.firmName || vendor.name).replace(/[^a-zA-Z0-9\u0900-\u097F]/g, '_');
+    downloadBlob(csvContent, `DEN_Vendor_Ledger_${cleanName}_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+  }
 }
 
 function downloadBlob(content: string, filename: string, mimeType: string) {
