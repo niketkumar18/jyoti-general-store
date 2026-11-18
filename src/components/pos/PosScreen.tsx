@@ -118,7 +118,7 @@ export const PosScreen: React.FC = () => {
     );
   };
 
-  const handleUpdatePrice = (itemId: number, newPrice: number) => {
+  const handleUpdatePrice = async (itemId: number, newPrice: number, updateCatalog: boolean = false) => {
     setCart((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
@@ -139,6 +139,18 @@ export const PosScreen: React.FC = () => {
         return item;
       })
     );
+
+    if (updateCatalog) {
+      try {
+        await db.items.update(itemId, {
+          salePrice: newPrice,
+          price: newPrice,
+          updatedAt: Date.now()
+        });
+      } catch (err) {
+        console.error('Failed to update catalog price:', err);
+      }
+    }
   };
 
   const handleRemoveItem = (itemId: number) => {
@@ -281,6 +293,7 @@ export const PosScreen: React.FC = () => {
         discount={discount}
         grandTotal={grandTotal}
         customer={selectedCustomer}
+        onUpdatePrice={handleUpdatePrice}
         onClose={() => setShowPaymentModal(false)}
         onOpenCustomerSelect={() => {
           setShowPaymentModal(false);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { 
@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   ArrowRight,
   Copy,
-  Check
+  Check,
+  Edit2,
+  ShoppingBag
 } from 'lucide-react';
 import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -32,6 +34,7 @@ interface PaymentModalProps {
   onInvoiceCreated: (invoice: Invoice, updatedCustomerBal?: number) => void;
   onTriggerRiskWarning: (customer: Customer, requestedCredit: number, onConfirm: () => void) => void;
   onOpenCustomerSelect: () => void;
+  onUpdatePrice?: (itemId: number, newPrice: number, updateCatalog?: boolean) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -44,7 +47,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   onInvoiceCreated,
   onTriggerRiskWarning,
-  onOpenCustomerSelect
+  onOpenCustomerSelect,
+  onUpdatePrice
 }) => {
   const { language, t } = useLanguage();
   const { settings } = useSettings();
@@ -55,6 +59,32 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUploadedQr, setShowUploadedQr] = useState(Boolean(settings.qrCodeImageUrl));
   const [copiedUpi, setCopiedUpi] = useState(false);
+
+  // Price Editing state at final bill
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [tempPrice, setTempPrice] = useState<number | ''>('');
+  const [updateCatalogPermanently, setUpdateCatalogPermanently] = useState(false);
+  const [showItemsSection, setShowItemsSection] = useState(true);
+
+  // Auto-sync cashTendered when grandTotal changes (e.g. after price edit)
+  useEffect(() => {
+    setCashTendered(grandTotal);
+  }, [grandTotal]);
+
+  const startEditingPrice = (item: CartItem) => {
+    setEditingItemId(item.itemId);
+    setTempPrice(item.salePrice);
+    setUpdateCatalogPermanently(false);
+  };
+
+  const handleSavePrice = (itemId: number) => {
+    if (typeof tempPrice === 'number' && tempPrice > 0) {
+      if (onUpdatePrice) {
+        onUpdatePrice(itemId, tempPrice, updateCatalogPermanently);
+      }
+    }
+    setEditingItemId(null);
+  };
 
   if (!isOpen) return null;
 
@@ -256,6 +286,101 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Payment Methods Grid */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 min-h-0">
+          {/* Item Rates Review & Edit Section at final bill */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setShowItemsSection(!showItemsSection)}
+              className="w-full p-3 bg-slate-100 hover:bg-slate-200/80 flex items-center justify-between text-xs font-bold text-slate-800 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-1.5">
+                <ShoppingBag className="w-4 h-4 text-emerald-700" />
+                <span>बिल के सामान ({cart.length}) - रेट जांचें / बदलें</span>
+              </div>
+              <span className="text-emerald-700 text-xs font-extrabold flex items-center gap-1">
+                {showItemsSection ? 'छुपाएं ▲' : 'देखें व बदलें ▼'}
+              </span>
+            </button>
+
+            {showItemsSection && (
+              <div className="p-2.5 divide-y divide-slate-100 max-h-56 overflow-y-auto">
+                {cart.map((item) => (
+                  <div key={item.itemId} className="py-2 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-xs text-slate-900 truncate">
+                          {item.nameHi || item.nameEn}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {item.quantity} {item.unit} × ₹{item.salePrice} ={' '}
+                          <strong className="text-slate-800 font-extrabold">₹{item.total}</strong>
+                        </div>
+                      </div>
+
+                      {editingItemId !== item.itemId && (
+                        <button
+                          type="button"
+                          onClick={() => startEditingPrice(item)}
+                          className="px-2.5 py-1 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-blue-700 font-bold rounded-lg text-xs flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>रेट बदलें</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Inline Price Editor */}
+                    {editingItemId === item.itemId && (
+                      <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-300 space-y-2 animate-in fade-in">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700">नया रेट (₹):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            autoFocus
+                            value={tempPrice}
+                            onChange={(e) =>
+                              setTempPrice(e.target.value === '' ? '' : parseFloat(e.target.value))
+                            }
+                            className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-lg font-black text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSavePrice(item.itemId)}
+                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer shadow-xs"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>लागू करें</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingItemId(null)}
+                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                            title="रद्द करें"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Checkbox to update catalog permanently */}
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-bold text-amber-950 bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                          <input
+                            type="checkbox"
+                            checked={updateCatalogPermanently}
+                            onChange={(e) => setUpdateCatalogPermanently(e.target.checked)}
+                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                          />
+                          <span>☑️ कैटलॉग (स्टॉक) में भी हमेशा के लिए यह नया रेट अपडेट करें</span>
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="text-xs font-bold text-slate-700">
             {t('payment_method')}
           </div>

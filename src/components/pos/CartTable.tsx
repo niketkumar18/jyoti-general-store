@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trash2, Plus, Minus, Receipt, ShoppingBag, Tag, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, Plus, Minus, Receipt, ShoppingBag, Tag, Sparkles, Edit2, Check, X } from 'lucide-react';
 import type { CartItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
@@ -8,7 +8,7 @@ interface CartTableProps {
   cart: CartItem[];
   discount: number;
   onUpdateQuantity: (itemId: number, newQty: number) => void;
-  onUpdatePrice: (itemId: number, newPrice: number) => void;
+  onUpdatePrice: (itemId: number, newPrice: number, updateCatalog?: boolean) => void;
   onRemoveItem: (itemId: number) => void;
   onClearCart: () => void;
   onSetDiscount: (discount: number) => void;
@@ -26,6 +26,23 @@ export const CartTable: React.FC<CartTableProps> = ({
   onProceedToPay
 }) => {
   const { language, t } = useLanguage();
+
+  const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
+  const [tempPrice, setTempPrice] = useState<number | ''>('');
+  const [updateCatalogPermanently, setUpdateCatalogPermanently] = useState(false);
+
+  const startEditingPrice = (item: CartItem) => {
+    setEditingPriceItemId(item.itemId);
+    setTempPrice(item.salePrice);
+    setUpdateCatalogPermanently(false);
+  };
+
+  const savePriceEdit = (itemId: number) => {
+    if (typeof tempPrice === 'number' && tempPrice > 0) {
+      onUpdatePrice(itemId, tempPrice, updateCatalogPermanently);
+    }
+    setEditingPriceItemId(null);
+  };
 
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   const grandTotal = Math.max(0, subtotal - discount);
@@ -87,6 +104,16 @@ export const CartTable: React.FC<CartTableProps> = ({
                       @{formatCurrency(item.salePrice)} / {formatUnit(item.unit, language)}
                     </span>
 
+                    <button
+                      type="button"
+                      onClick={() => startEditingPrice(item)}
+                      className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 font-bold ml-1 hover:underline cursor-pointer"
+                      title="रेट बदलें"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>रेट बदलें</span>
+                    </button>
+
                     {/* Bulk Discount Applied Badge */}
                     {item.isBulkDiscountApplied ? (
                       <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.2 rounded">
@@ -99,6 +126,49 @@ export const CartTable: React.FC<CartTableProps> = ({
                       </span>
                     ) : null}
                   </div>
+
+                  {/* Inline Price Editor */}
+                  {editingPriceItemId === item.itemId && (
+                    <div className="mt-2 p-2.5 bg-amber-50 rounded-xl border border-amber-300 text-xs space-y-2 animate-in fade-in">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-700">नया रेट (₹):</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          autoFocus
+                          value={tempPrice}
+                          onChange={(e) => setTempPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                          className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-lg font-black text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => savePriceEdit(item.itemId)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg flex items-center gap-1 text-xs cursor-pointer shadow-xs"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>लागू</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPriceItemId(null)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                          title="रद्द करें"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-bold text-amber-950 bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                        <input
+                          type="checkbox"
+                          checked={updateCatalogPermanently}
+                          onChange={(e) => setUpdateCatalogPermanently(e.target.checked)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span>☑️ कैटलॉग में भी हमेशा के लिए यह नया रेट अपडेट करें</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
 
                 {/* Quantity Controls */}

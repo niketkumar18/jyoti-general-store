@@ -475,10 +475,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           {/* LEFT BUTTON: पेमेंट-इन (Receive Payment) */}
           <button
             onClick={() => {
-              if (customers.length > 0) {
-                const debtor = customers.find(c => c.currentBalance > 0) || customers[0];
-                setSelectedCustomerForReceive(debtor);
-              }
+              setSelectedCustomerForReceive(null);
               setIsReceivePaymentOpen(true);
             }}
             className="flex-1 py-3 px-3 bg-[#242A38] hover:bg-slate-800 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
