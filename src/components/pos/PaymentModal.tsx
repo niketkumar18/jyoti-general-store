@@ -13,7 +13,10 @@ import {
   Copy,
   Check,
   Edit2,
-  ShoppingBag
+  ShoppingBag,
+  Minus,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -35,6 +38,8 @@ interface PaymentModalProps {
   onTriggerRiskWarning: (customer: Customer, requestedCredit: number, onConfirm: () => void) => void;
   onOpenCustomerSelect: () => void;
   onUpdatePrice?: (itemId: number, newPrice: number, updateCatalog?: boolean) => void;
+  onUpdateQuantity?: (itemId: number, newQty: number) => void;
+  onRemoveItem?: (itemId: number) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -48,7 +53,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onInvoiceCreated,
   onTriggerRiskWarning,
   onOpenCustomerSelect,
-  onUpdatePrice
+  onUpdatePrice,
+  onUpdateQuantity,
+  onRemoveItem
 }) => {
   const { language, t } = useLanguage();
   const { settings } = useSettings();
@@ -60,28 +67,38 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showUploadedQr, setShowUploadedQr] = useState(Boolean(settings.qrCodeImageUrl));
   const [copiedUpi, setCopiedUpi] = useState(false);
 
-  // Price Editing state at final bill
+  // Price & Quantity Editing state at final bill
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [tempPrice, setTempPrice] = useState<number | ''>('');
+  const [tempQty, setTempQty] = useState<number | ''>('');
   const [updateCatalogPermanently, setUpdateCatalogPermanently] = useState(false);
   const [showItemsSection, setShowItemsSection] = useState(true);
 
-  // Auto-sync cashTendered when grandTotal changes (e.g. after price edit)
+  // Auto-sync cashTendered when grandTotal changes (e.g. after price/quantity edit)
   useEffect(() => {
     setCashTendered(grandTotal);
   }, [grandTotal]);
 
-  const startEditingPrice = (item: CartItem) => {
+  // If cart emptied, close payment modal
+  useEffect(() => {
+    if (isOpen && cart.length === 0) {
+      onClose();
+    }
+  }, [isOpen, cart.length, onClose]);
+
+  const startEditingItem = (item: CartItem) => {
     setEditingItemId(item.itemId);
     setTempPrice(item.salePrice);
+    setTempQty(item.quantity);
     setUpdateCatalogPermanently(false);
   };
 
-  const handleSavePrice = (itemId: number) => {
-    if (typeof tempPrice === 'number' && tempPrice > 0) {
-      if (onUpdatePrice) {
-        onUpdatePrice(itemId, tempPrice, updateCatalogPermanently);
-      }
+  const handleSaveItemEdit = (itemId: number) => {
+    if (typeof tempQty === 'number' && tempQty > 0 && onUpdateQuantity) {
+      onUpdateQuantity(itemId, tempQty);
+    }
+    if (typeof tempPrice === 'number' && tempPrice > 0 && onUpdatePrice) {
+      onUpdatePrice(itemId, tempPrice, updateCatalogPermanently);
     }
     setEditingItemId(null);
   };
@@ -303,80 +320,213 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </button>
 
             {showItemsSection && (
-              <div className="p-2.5 divide-y divide-slate-100 max-h-56 overflow-y-auto">
-                {cart.map((item) => (
-                  <div key={item.itemId} className="py-2 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-xs text-slate-900 truncate">
-                          {item.nameHi || item.nameEn}
+              <div className="p-2.5 divide-y divide-slate-100 max-h-64 overflow-y-auto space-y-2">
+                {cart.map((item) => {
+                  const isWeight = item.unit === 'KG' || item.unit === 'LITRE';
+                  const step = isWeight ? 0.25 : 1;
+                  const isEditing = editingItemId === item.itemId;
+
+                  return (
+                    <div
+                      key={item.itemId}
+                      className={`p-2.5 rounded-xl border transition-all ${
+                        isEditing
+                          ? 'bg-amber-50/80 border-amber-300'
+                          : 'bg-white border-slate-200/80'
+                      }`}
+                    >
+                      {/* Top Row: Name, Rate & Line Total */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
+                            {item.nameHi || item.nameEn}
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                            <span>
+                              @{formatCurrency(item.salePrice)} / {formatUnit(item.unit, language)}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isEditing) {
+                                  setEditingItemId(null);
+                                } else {
+                                  startEditingItem(item);
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
+                                isEditing
+                                  ? 'bg-amber-200 text-amber-900 border-amber-300'
+                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                              }`}
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              <span>{isEditing ? 'बंद करें' : 'रेट / मात्रा बदलें'}</span>
+                            </button>
+                          </div>
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          {item.quantity} {item.unit} × ₹{item.salePrice} ={' '}
-                          <strong className="text-slate-800 font-extrabold">₹{item.total}</strong>
+
+                        {/* Line Total & Remove */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="text-right">
+                            <span className="font-black text-sm text-slate-900 block">
+                              {formatCurrency(item.total)}
+                            </span>
+                          </div>
+                          {onRemoveItem && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveItem(item.itemId)}
+                              className="text-slate-300 hover:text-rose-600 p-1 rounded-md cursor-pointer transition-all"
+                              title="सामान हटाएं"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
-                      {editingItemId !== item.itemId && (
-                        <button
-                          type="button"
-                          onClick={() => startEditingPrice(item)}
-                          className="px-2.5 py-1 bg-white hover:bg-blue-50 border border-slate-300 hover:border-blue-300 text-blue-700 font-bold rounded-lg text-xs flex items-center gap-1 shadow-2xs cursor-pointer transition-all shrink-0"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>रेट बदलें</span>
-                        </button>
+                      {/* Normal Quick Quantity Control (when not expanded) */}
+                      {!isEditing ? (
+                        <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="text-slate-500 font-medium">
+                            मात्रा: <strong className="text-slate-800">{item.quantity} {formatUnit(item.unit, language)}</strong>
+                          </span>
+
+                          {onUpdateQuantity && (
+                            <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = Math.max(0, Number((item.quantity - step).toFixed(2)));
+                                  if (next === 0 && onRemoveItem) {
+                                    onRemoveItem(item.itemId);
+                                  } else {
+                                    onUpdateQuantity(item.itemId, next);
+                                  }
+                                }}
+                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs font-bold"
+                                title="मात्रा कम करें"
+                              >
+                                <Minus className="w-3 h-3" />
+                              </button>
+
+                              <span className="w-12 text-center font-black text-xs text-slate-900">
+                                {item.quantity}
+                              </span>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = Number((item.quantity + step).toFixed(2));
+                                  onUpdateQuantity(item.itemId, next);
+                                }}
+                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-2xs font-bold"
+                                title="मात्रा बढ़ाएं"
+                              >
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Expanded Full-Width Edit Panel */
+                        <div className="mt-2 pt-2 border-t border-amber-200/80 space-y-2 animate-in fade-in">
+                          <div className="grid grid-cols-2 gap-2">
+                            {/* Quantity Input */}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                                मात्रा ({formatUnit(item.unit, language)}):
+                              </label>
+                              <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-slate-300">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const current = typeof tempQty === 'number' ? tempQty : item.quantity;
+                                    const next = Math.max(step, Number((current - step).toFixed(2)));
+                                    setTempQty(next);
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-rose-50 text-slate-700 font-bold"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <input
+                                  type="number"
+                                  step={isWeight ? '0.05' : '1'}
+                                  min="0"
+                                  value={tempQty}
+                                  onChange={(e) => setTempQty(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                  className="w-full text-center font-black text-xs text-slate-900 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const current = typeof tempQty === 'number' ? tempQty : item.quantity;
+                                    const next = Number((current + step).toFixed(2));
+                                    setTempQty(next);
+                                  }}
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-emerald-50 text-slate-700 font-bold"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Rate Input */}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
+                                नया रेट (₹):
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-2 top-1 text-xs text-slate-400 font-bold">₹</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  value={tempPrice}
+                                  onChange={(e) => setTempPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                  className="w-full pl-5 pr-2 py-1 bg-white border border-slate-300 rounded-lg font-black text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Checkbox */}
+                          <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-bold text-amber-950 bg-white/90 p-1.5 rounded-lg border border-amber-200">
+                            <input
+                              type="checkbox"
+                              checked={updateCatalogPermanently}
+                              onChange={(e) => setUpdateCatalogPermanently(e.target.checked)}
+                              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+                            />
+                            <span>☑️ कैटलॉग में भी हमेशा के लिए यह नया रेट अपडेट करें</span>
+                          </label>
+
+                          {/* Buttons */}
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveItemEdit(item.itemId)}
+                              className="flex-1 py-1.5 px-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 active:scale-95 text-white font-extrabold rounded-lg flex items-center justify-center gap-1 text-xs cursor-pointer shadow-xs transition-all"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>लागू करें</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingItemId(null)}
+                              className="py-1.5 px-3 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold rounded-lg text-xs cursor-pointer transition-all"
+                            >
+                              रद्द करें
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
-
-                    {/* Inline Price Editor */}
-                    {editingItemId === item.itemId && (
-                      <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-300 space-y-2 animate-in fade-in">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-700">नया रेट (₹):</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            autoFocus
-                            value={tempPrice}
-                            onChange={(e) =>
-                              setTempPrice(e.target.value === '' ? '' : parseFloat(e.target.value))
-                            }
-                            className="w-24 px-2 py-1 bg-white border border-slate-300 rounded-lg font-black text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSavePrice(item.itemId)}
-                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 cursor-pointer shadow-xs"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>लागू करें</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingItemId(null)}
-                            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
-                            title="रद्द करें"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* Checkbox to update catalog permanently */}
-                        <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-bold text-amber-950 bg-white/90 p-1.5 rounded-lg border border-amber-200">
-                          <input
-                            type="checkbox"
-                            checked={updateCatalogPermanently}
-                            onChange={(e) => setUpdateCatalogPermanently(e.target.checked)}
-                            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                          />
-                          <span>☑️ कैटलॉग (स्टॉक) में भी हमेशा के लिए यह नया रेट अपडेट करें</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

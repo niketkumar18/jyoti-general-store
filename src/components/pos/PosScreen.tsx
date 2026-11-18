@@ -294,6 +294,8 @@ export const PosScreen: React.FC = () => {
         grandTotal={grandTotal}
         customer={selectedCustomer}
         onUpdatePrice={handleUpdatePrice}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
         onClose={() => setShowPaymentModal(false)}
         onOpenCustomerSelect={() => {
           setShowPaymentModal(false);
