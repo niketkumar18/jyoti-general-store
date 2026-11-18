@@ -20,6 +20,14 @@ export function formatDate(timestamp: number, lang: Language = 'hi'): string {
   });
 }
 
+export function formatDateDMY(timestamp: number): string {
+  const d = new Date(timestamp);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 export function formatDateTime(timestamp: number, lang: Language = 'hi'): string {
   const d = new Date(timestamp);
   return d.toLocaleString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
@@ -83,4 +91,44 @@ export function getRiskColorClasses(level: RiskLevel): {
         dot: 'bg-emerald-500'
       };
   }
+}
+
+export function numberToWordsINR(amount: number): string {
+  if (isNaN(amount) || amount <= 0) return 'Zero Rupees';
+  const rounded = Math.round(amount);
+
+  const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertTwoDigits(n: number): string {
+    if (n < 10) return units[n];
+    if (n < 20) return teens[n - 10];
+    const unit = n % 10;
+    return tens[Math.floor(n / 10)] + (unit ? ' ' + units[unit] : '');
+  }
+
+  function convertThreeDigits(n: number): string {
+    const hundred = Math.floor(n / 100);
+    const rest = n % 100;
+    if (hundred && rest) return units[hundred] + ' Hundred ' + convertTwoDigits(rest);
+    if (hundred) return units[hundred] + ' Hundred';
+    return convertTwoDigits(rest);
+  }
+
+  let crore = Math.floor(rounded / 10000000);
+  let remainder = rounded % 10000000;
+  let lakh = Math.floor(remainder / 100000);
+  remainder %= 100000;
+  let thousand = Math.floor(remainder / 1000);
+  remainder %= 1000;
+  let hundredPart = remainder;
+
+  const parts: string[] = [];
+  if (crore) parts.push(convertTwoDigits(crore) + ' Crore');
+  if (lakh) parts.push(convertTwoDigits(lakh) + ' Lakh');
+  if (thousand) parts.push(convertTwoDigits(thousand) + ' Thousand');
+  if (hundredPart) parts.push(convertThreeDigits(hundredPart));
+
+  return (parts.join(' ') + ' Rupees').trim();
 }

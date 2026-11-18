@@ -177,7 +177,9 @@ export interface ShopSettings {
   tagline: string;
   ownerName: string;
   mobile: string;
+  email?: string;
   address: string;
+  placeOfSupply?: string;
   gstin?: string;
   upiId: string; // e.g. "kirana@okaxis" for QR code generation
   qrCodeImageUrl?: string; // Custom uploaded QR code image (Base64 data URL)

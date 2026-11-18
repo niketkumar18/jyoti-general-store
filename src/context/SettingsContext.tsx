@@ -39,6 +39,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let effective: ShopSettings = { ...initialSettings };
       if (record && record.value) {
         effective = { ...initialSettings, ...record.value };
+        if (!effective.email || effective.address === 'Deep Market, Meghpur') {
+          effective.shopName = 'M/S JYOTI GENERAL STORE';
+          effective.email = 'jyotigeneralstore11@gmail.com';
+          effective.address = 'महावीर स्थान मेघपुर दीप मार्केट, मेघपुर बड़ा सुरसंड पश्चिमी, Bihar, 843331';
+          effective.gstin = '10AOGPC3358B2ZR';
+          effective.placeOfSupply = 'Bihar';
+          await db.settings.put({ key: 'shop_settings', value: effective });
+        }
       }
 
       // Ensure default Google Sheets URL is configured if empty

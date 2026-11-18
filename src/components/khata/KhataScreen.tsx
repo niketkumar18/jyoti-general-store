@@ -15,7 +15,8 @@ import {
   Building2,
   Users,
   PackagePlus,
-  Scale
+  Scale,
+  Trash2
 } from 'lucide-react';
 import { db } from '../../db';
 import type { Customer, RiskLevel, Vendor } from '../../types';
@@ -80,6 +81,23 @@ export const KhataScreen: React.FC = () => {
 
   const handleExportCsv = () => {
     exportCustomerKhataToCsv(customers, ledgerEntries);
+  };
+
+  const handleDeleteCustomer = async (c: Customer) => {
+    if (!c.id) return;
+    const confirmMsg = c.currentBalance > 0
+      ? `⚠️ चेतावनी: ग्राहक "${c.name}" का ₹${c.currentBalance} उधारी बकाया है!\n\nक्या आप वाकई इस ग्राहक और इसके खाते को हटाना चाहते हैं?`
+      : `क्या आप वाकई ग्राहक "${c.name}" को हटाना चाहते हैं?`;
+
+    if (window.confirm(confirmMsg)) {
+      try {
+        await db.customers.delete(c.id);
+        await db.ledger.where('customerId').equals(c.id).delete();
+      } catch (err) {
+        console.error('Failed to delete customer:', err);
+        alert('ग्राहक हटाने में त्रुटि हुई');
+      }
+    }
   };
 
   return (
@@ -383,10 +401,19 @@ export const KhataScreen: React.FC = () => {
                                 setCustomerToEdit(c);
                                 setShowCustomerForm(true);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+                              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
                               title="ग्राहक विवरण सुधारें"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Delete Customer */}
+                            <button
+                              onClick={() => handleDeleteCustomer(c)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
+                              title="ग्राहक हटाएं"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>

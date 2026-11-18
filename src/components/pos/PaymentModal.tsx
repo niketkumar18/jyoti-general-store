@@ -129,9 +129,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const processInvoiceCreation = async () => {
     setIsSubmitting(true);
     try {
-      // 1. Generate sequential invoice number
+      // 1. Generate sequential invoice number (matching myBillBook template MJ/SL/...)
       const invoiceCount = await db.invoices.count();
-      const invoiceNumber = `DEN-${1000 + invoiceCount + 1}`;
+      const invoiceNumber = `MJ/SL/${670 + invoiceCount + 1}`;
 
       const invoiceItems = cart.map((c) => ({
         itemId: c.itemId,

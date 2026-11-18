@@ -4,13 +4,15 @@ import type { InventoryItem, Customer, ShopSettings, Vendor, VendorLedgerEntry }
 export const DEFAULT_GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxEBvSKonGm_7fv5MMrSTdHJ2MAIp87JblYjrpCDk0ieEd-abJ9PDQ6-eUlpH_fCIJStw/exec';
 
 export const initialSettings: ShopSettings = {
-  shopName: 'JYOTI GENERAL STORE',
+  shopName: 'M/S JYOTI GENERAL STORE',
   shopNameHi: 'ज्योति जनरल स्टोर',
   tagline: 'शुद्धता और विश्वास का प्रतीक | DEN POS',
   ownerName: 'दुकानदार भैया',
   mobile: '9931300369',
-  address: 'Deep Market, Meghpur',
-  gstin: '09AAACH7409R1ZZ',
+  email: 'jyotigeneralstore11@gmail.com',
+  address: 'महावीर स्थान मेघपुर दीप मार्केट, मेघपुर बड़ा सुरसंड पश्चिमी, Bihar, 843331',
+  placeOfSupply: 'Bihar',
+  gstin: '10AOGPC3358B2ZR',
   upiId: '9931300369@okbizaxis',
   qrCodeImageUrl: '/jyoti-qr-standee.jpg',
   defaultCreditLimit: 2000,
