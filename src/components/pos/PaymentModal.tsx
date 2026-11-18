@@ -21,7 +21,7 @@ import {
 import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
-import { formatCurrency, calculateRiskLevel } from '../../utils/formatters';
+import { formatCurrency, formatUnit, calculateRiskLevel } from '../../utils/formatters';
 import { playSuccessChime } from '../../utils/audio';
 import { db } from '../../db';
 import { syncPendingToGoogleSheets } from '../../utils/googleSheetsSync';
@@ -243,6 +243,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handleCompleteBill = () => {
+    // If an item is currently being edited, auto-save it first so changes aren't lost
+    if (editingItemId !== null) {
+      handleSaveItemEdit(editingItemId);
+    }
+
     // If Udhar or Split selected but no registered customer chosen
     if ((paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && dueAmount > 0)) && !customer) {
       alert(

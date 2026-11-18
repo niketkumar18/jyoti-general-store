@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider } from './context/LanguageContext';
 import { SettingsProvider } from './context/SettingsContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Navbar, type ActiveTab } from './components/common/Navbar';
 import { InstallPwaBanner } from './components/common/InstallPwaBanner';
 import { DashboardScreen } from './components/dashboard/DashboardScreen';
@@ -98,11 +99,13 @@ const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <LanguageProvider>
-      <SettingsProvider>
-        <AppContent />
-      </SettingsProvider>
-    </LanguageProvider>
+    <ErrorBoundary>
+      <LanguageProvider>
+        <SettingsProvider>
+          <AppContent />
+        </SettingsProvider>
+      </LanguageProvider>
+    </ErrorBoundary>
   );
 };
 
