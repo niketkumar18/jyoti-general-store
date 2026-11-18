@@ -11,24 +11,31 @@ import {
   ArrowDownLeft, 
   Clock, 
   AlertTriangle, 
-  DollarSign, 
   Plus, 
   Receipt, 
   Scale, 
-  Sparkles, 
-  FileSpreadsheet,
+  Crown,
   ChevronRight,
   PackagePlus,
-  QrCode,
+  Calculator,
   Calendar,
-  Wallet
+  Wallet,
+  Gift,
+  Monitor,
+  CheckCircle2,
+  FileText,
+  X,
+  CreditCard,
+  UserPlus
 } from 'lucide-react';
 import { db } from '../../db';
 import type { ActiveTab } from '../common/Navbar';
+import type { Customer, Vendor } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { VendorPurchaseModal } from '../khata/VendorPurchaseModal';
+import { ReceivePaymentModal } from '../khata/ReceivePaymentModal';
 
 interface DashboardScreenProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -38,9 +45,15 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   const { language, t } = useLanguage();
   const { settings } = useSettings();
 
+  // Modals state
   const [isVendorPurchaseModalOpen, setIsVendorPurchaseModalOpen] = useState(false);
+  const [isReceivePaymentOpen, setIsReceivePaymentOpen] = useState(false);
+  const [selectedCustomerForReceive, setSelectedCustomerForReceive] = useState<Customer | null>(null);
+  const [showQuickActionMenu, setShowQuickActionMenu] = useState(false);
+  const [showBanner, setShowBanner] = useState(true);
+  const [dateFilter, setDateFilter] = useState<'TODAY' | 'ALL'>('ALL');
 
-  // Live data from Dexie IndexedDB
+  // Live queries
   const invoices = useLiveQuery(() => db.invoices.toArray()) || [];
   const customers = useLiveQuery(() => db.customers.toArray()) || [];
   const vendors = useLiveQuery(() => db.vendors.toArray()) || [];
@@ -51,627 +64,547 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   // Date boundaries
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
-  // Inventory Map for cost price lookup
+  // Inventory Cost Map
   const itemCostMap = useMemo(() => {
     const map = new Map<number, number>();
     inventoryItems.forEach((item) => {
-      if (item.id) {
-        map.set(item.id, item.costPrice || 0);
-      }
+      if (item.id) map.set(item.id, item.costPrice || 0);
     });
     return map;
   }, [inventoryItems]);
 
-  // 1. TOTAL SALES (बिक्री)
-  const salesMetrics = useMemo(() => {
-    let todaySales = 0;
-    let todayBillsCount = 0;
-    let todayCash = 0;
-    let todayUpi = 0;
-    let todayCredit = 0;
-    let todayCost = 0;
-
-    let monthSales = 0;
-    let monthCost = 0;
-
-    let allTimeSales = 0;
-
-    invoices.forEach((inv) => {
-      allTimeSales += inv.grandTotal;
-
-      // Calculate cost of goods sold for this invoice
-      let invCost = 0;
-      inv.items.forEach((it) => {
-        const unitCost = (typeof it.costPrice === 'number' && it.costPrice >= 0)
-          ? it.costPrice
-          : (it.itemId && itemCostMap.has(it.itemId) ? itemCostMap.get(it.itemId)! : 0);
-        invCost += unitCost * it.quantity;
-      });
-
-      if (inv.createdAt >= startOfToday) {
-        todaySales += inv.grandTotal;
-        todayBillsCount += 1;
-        todayCost += invCost;
-
-        if (inv.paymentMethod === 'CASH') todayCash += inv.paidAmount;
-        else if (inv.paymentMethod === 'UPI') todayUpi += inv.paidAmount;
-        else if (inv.paymentMethod === 'SPLIT') {
-          todayCash += (inv.paidAmount / 2);
-          todayUpi += (inv.paidAmount / 2);
-        }
-        todayCredit += inv.dueAmount;
-      }
-
-      if (inv.createdAt >= startOfMonth) {
-        monthSales += inv.grandTotal;
-        monthCost += invCost;
-      }
-    });
-
-    const todayProfit = todaySales - todayCost;
-    const todayMargin = todaySales > 0 ? Number(((todayProfit / todaySales) * 100).toFixed(1)) : 0;
-
-    const monthProfit = monthSales - monthCost;
-    const monthMargin = monthSales > 0 ? Number(((monthProfit / monthSales) * 100).toFixed(1)) : 0;
-
-    return {
-      todaySales,
-      todayBillsCount,
-      todayCash,
-      todayUpi,
-      todayCredit,
-      todayProfit,
-      todayMargin,
-      monthSales,
-      monthProfit,
-      monthMargin,
-      allTimeSales
-    };
-  }, [invoices, startOfToday, startOfMonth, itemCostMap]);
-
-  // 2. BORROW / UDHAR METRICS (उधारी - लेना है vs देना है)
-  const borrowMetrics = useMemo(() => {
-    const customerUdhar = customers.reduce(
+  // Financial Metrics (आप लेंगे, आप देंगे, स्टॉक, बिक्री, बैलेंस)
+  const metrics = useMemo(() => {
+    // 1. आप लेंगे (Customer Receivables)
+    const aapLenge = customers.reduce(
       (sum, c) => sum + (c.currentBalance > 0 ? c.currentBalance : 0),
       0
     );
-    const debtorsCount = customers.filter((c) => c.currentBalance > 0).length;
 
-    const vendorDue = vendors.reduce(
+    // 2. आप देंगे (Vendor Payables)
+    const aapDenge = vendors.reduce(
       (sum, v) => sum + (v.currentBalance > 0 ? v.currentBalance : 0),
       0
     );
-    const suppliersOwedCount = vendors.filter((v) => v.currentBalance > 0).length;
 
-    const netBorrowPosition = customerUdhar - vendorDue;
-
-    return {
-      customerUdhar,
-      debtorsCount,
-      vendorDue,
-      suppliersOwedCount,
-      netBorrowPosition
-    };
-  }, [customers, vendors]);
-
-  // 3. STOCK & INVENTORY METRICS
-  const stockMetrics = useMemo(() => {
-    const totalValuation = inventoryItems.reduce(
+    // 3. स्टॉक का मूल्य (Inventory Asset Value)
+    const stockValuation = inventoryItems.reduce(
       (sum, item) => sum + ((item.costPrice || item.salePrice) * (item.stockQty || 0)),
       0
     );
-    const lowStockItems = inventoryItems.filter(
-      (item) => item.stockQty <= item.lowStockThreshold
-    );
+
+    // 4. बिक्री (Sales)
+    let todaySales = 0;
+    let allTimeSales = 0;
+    let totalCashReceived = 0;
+    let totalUpiReceived = 0;
+
+    invoices.forEach((inv) => {
+      allTimeSales += inv.grandTotal;
+      if (inv.createdAt >= startOfToday) {
+        todaySales += inv.grandTotal;
+      }
+      if (inv.paymentMethod === 'CASH') totalCashReceived += inv.paidAmount;
+      else if (inv.paymentMethod === 'UPI') totalUpiReceived += inv.paidAmount;
+      else if (inv.paymentMethod === 'SPLIT') {
+        totalCashReceived += (inv.paidAmount / 2);
+        totalUpiReceived += (inv.paidAmount / 2);
+      }
+    });
+
+    // 5. कुल बैलेंस (Cash + Bank Balance)
+    const totalBalance = totalCashReceived + totalUpiReceived;
+
     return {
-      totalValuation,
-      totalCount: inventoryItems.length,
-      lowStockItems,
-      lowStockCount: lowStockItems.length
+      aapLenge,
+      aapDenge,
+      stockValuation,
+      todaySales,
+      allTimeSales,
+      totalBalance
     };
-  }, [inventoryItems]);
+  }, [customers, vendors, inventoryItems, invoices, startOfToday]);
 
-  // Recent 5 invoices
-  const recentInvoices = useMemo(() => {
-    return [...invoices]
-      .sort((a, b) => b.createdAt - a.createdAt)
-      .slice(0, 5);
-  }, [invoices]);
+  // Unified Transactions List (Customers + Vendors combined)
+  const allTransactions = useMemo(() => {
+    type UnifiedTx = {
+      id: string;
+      title: string;
+      subtitle: string;
+      date: number;
+      amount: number;
+      type: 'INVOICE' | 'CUSTOMER_PAYMENT' | 'VENDOR_PURCHASE' | 'VENDOR_PAYMENT';
+      isDue: boolean;
+      dueAmount?: number;
+      rawCustomer?: Customer;
+    };
 
-  // Recent 5 vendor transactions
-  const recentVendorBills = useMemo(() => {
-    return vendorLedgerEntries.slice(0, 5);
-  }, [vendorLedgerEntries]);
+    const list: UnifiedTx[] = [];
+
+    // Invoices
+    invoices.forEach((inv) => {
+      const isDue = inv.dueAmount > 0;
+      list.push({
+        id: `inv-${inv.id}`,
+        title: inv.customerName || 'नकद ग्राहक (Walk-in)',
+        subtitle: `बिल इनवॉइस #${inv.invoiceNumber}`,
+        date: inv.createdAt,
+        amount: inv.grandTotal,
+        type: 'INVOICE',
+        isDue,
+        dueAmount: inv.dueAmount
+      });
+    });
+
+    // Customer payments
+    customerLedgerEntries.forEach((e) => {
+      if (e.type === 'CREDIT') {
+        list.push({
+          id: `pay-${e.id}`,
+          title: e.customerName,
+          subtitle: `पेमेंट-इन जमा (${e.paymentMode || 'नकद'})`,
+          date: e.createdAt,
+          amount: e.amount,
+          type: 'CUSTOMER_PAYMENT',
+          isDue: false
+        });
+      }
+    });
+
+    // Vendor purchases
+    vendorLedgerEntries.forEach((v) => {
+      if (v.type === 'PURCHASE') {
+        list.push({
+          id: `vp-${v.id}`,
+          title: v.vendorName,
+          subtitle: `माल खरीद: ${v.itemName || v.description} ${v.billNumber ? `(#${v.billNumber})` : ''}`,
+          date: v.createdAt,
+          amount: v.amount,
+          type: 'VENDOR_PURCHASE',
+          isDue: (v.dueAmount || 0) > 0,
+          dueAmount: v.dueAmount
+        });
+      }
+    });
+
+    // Sort newest first
+    list.sort((a, b) => b.date - a.date);
+
+    if (dateFilter === 'TODAY') {
+      return list.filter((tx) => tx.date >= startOfToday);
+    }
+    return list.slice(0, 20); // Top 20 for instant responsiveness
+  }, [invoices, customerLedgerEntries, vendorLedgerEntries, dateFilter, startOfToday]);
 
   return (
-    <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-5 pb-24 sm:pb-8">
+    <div className="max-w-2xl mx-auto p-3 sm:p-5 space-y-4 pb-28 animate-in fade-in duration-200">
       {/* ========================================================================= */}
-      {/* 1. TOP HERO HEADER & WELCOME BAR                                          */}
+      {/* 1. TOP HEADER (BRAND & QUICK SHORTCUTS)                                    */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-950 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-emerald-700/50">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-1.5 bg-emerald-500/20 text-emerald-300 rounded-xl border border-emerald-400/20">
-                <Sparkles className="w-5 h-5 text-emerald-300" />
-              </span>
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                {settings.shopName || 'ज्योति जनरल स्टोर'}
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-400/20 text-emerald-300 border border-emerald-300/30 uppercase tracking-wider">
-                लाइव डैशबोर्ड
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-emerald-100/80 mt-1">
-              आज का कारोबार: कुल बिक्री, उधारी (लेना/देना) एवं शुद्ध मुनाफे का रीयल-टाइम बहीखाता
-            </p>
-          </div>
-
-          {/* Quick Date Display */}
-          <div className="flex items-center gap-2 bg-emerald-950/60 backdrop-blur border border-emerald-600/30 px-3.5 py-2 rounded-2xl text-xs font-bold text-emerald-200">
-            <Calendar className="w-4 h-4 text-emerald-400" />
-            <span>
-              {new Date().toLocaleDateString('hi-IN', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              })}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. THE THREE CORE CARDS: TOTAL SELL, BORROW, PROFIT                       */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* CARD 1: TOTAL SELL (कुल बिक्री) */}
-        <div 
-          onClick={() => onNavigate('pos')}
-          className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-50 rounded-bl-full -z-0 opacity-60 group-hover:scale-110 transition-transform" />
-          <div className="relative z-10 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  <ShoppingCart className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-                    कुल बिक्री (Total Sell)
-                  </span>
-                  <p className="text-xs text-emerald-700 font-bold">आज की काउंटर बिक्री</p>
-                </div>
-              </div>
-              <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-            </div>
-
-            {/* Today's Big Number */}
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-                {formatCurrency(salesMetrics.todaySales)}
-              </p>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                <span className="font-bold text-slate-700">आज के बिल: {salesMetrics.todayBillsCount}</span>
-                <span>•</span>
-                <span className="text-emerald-700 font-bold">नकद: {formatCurrency(salesMetrics.todayCash)}</span>
-                <span>•</span>
-                <span className="text-blue-700 font-bold">UPI: {formatCurrency(salesMetrics.todayUpi)}</span>
-              </div>
-            </div>
-
-            {/* Month & All-time Breakdown */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">इस महीने (This Month)</span>
-                <span className="font-extrabold text-slate-800 text-sm">{formatCurrency(salesMetrics.monthSales)}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">ऑल-टाइम बिक्री</span>
-                <span className="font-extrabold text-slate-700 text-sm">{formatCurrency(salesMetrics.allTimeSales)}</span>
-              </div>
-            </div>
-          </div>
+      <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center gap-1.5 cursor-pointer">
+          <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase">
+            M/S {settings.shopName || 'JYOTI GENERAL STORE'}
+          </h1>
+          <span className="text-slate-400 text-xs">▼</span>
         </div>
 
-        {/* CARD 2: BORROW / UDHAR (उधारी खाता: लेना है vs देना है) */}
-        <div 
-          onClick={() => onNavigate('khata')}
-          className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-amber-300 transition-all cursor-pointer relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 w-28 h-28 bg-amber-50 rounded-bl-full -z-0 opacity-60 group-hover:scale-110 transition-transform" />
-          <div className="relative z-10 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-black">
-                  <Scale className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-                    उधारी स्थिति (Borrow & Credit)
-                  </span>
-                  <p className="text-xs text-amber-700 font-bold">बाज़ार लेनदारी व देनदारी</p>
-                </div>
-              </div>
-              <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-amber-600 transition-colors" />
-            </div>
-
-            {/* Split: Customer Udhar vs Vendor Due */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-rose-50 border border-rose-200/80 rounded-2xl p-2.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 block">
-                  ग्राहकों से लेना है
-                </span>
-                <span className="text-xl sm:text-2xl font-black text-rose-600 mt-0.5 block">
-                  {formatCurrency(borrowMetrics.customerUdhar)}
-                </span>
-                <span className="text-[10px] text-rose-700 font-medium">
-                  {borrowMetrics.debtorsCount} ग्राहकों पर उधार
-                </span>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-2.5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
-                  सप्लायर को देना है
-                </span>
-                <span className="text-xl sm:text-2xl font-black text-amber-700 mt-0.5 block">
-                  {formatCurrency(borrowMetrics.vendorDue)}
-                </span>
-                <span className="text-[10px] text-amber-800 font-medium">
-                  {borrowMetrics.suppliersOwedCount} महाजनों का बकाया
-                </span>
-              </div>
-            </div>
-
-            {/* Net Position */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">शुद्ध संतुलन (Net Balance):</span>
-              <span className={`font-black text-sm ${borrowMetrics.netBorrowPosition >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                {borrowMetrics.netBorrowPosition >= 0 ? '+' : ''}{formatCurrency(borrowMetrics.netBorrowPosition)}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* CARD 3: TOTAL PROFIT (शुद्ध मुनाफा) */}
-        <div 
-          onClick={() => onNavigate('reports')}
-          className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-50 rounded-bl-full -z-0 opacity-60 group-hover:scale-110 transition-transform" />
-          <div className="relative z-10 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black">
-                  <TrendingUp className="w-5 h-5 text-emerald-700" />
-                </div>
-                <div>
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-500">
-                    शुद्ध मुनाफा (Profit)
-                  </span>
-                  <p className="text-xs text-emerald-700 font-bold">खरीद लागत घटाकर शुद्ध बचत</p>
-                </div>
-              </div>
-              <ArrowUpRight className="w-5 h-5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
-            </div>
-
-            {/* Today's Profit */}
-            <div>
-              <p className="text-3xl sm:text-4xl font-black text-emerald-700 tracking-tight">
-                +{formatCurrency(salesMetrics.todayProfit)}
-              </p>
-              <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                <span className="px-2 py-0.5 rounded-full font-black text-xs bg-emerald-100 text-emerald-800">
-                  {salesMetrics.todayMargin}% मार्जिन
-                </span>
-                <span>आज की कुल बिक्री पर मुनाफा</span>
-              </div>
-            </div>
-
-            {/* Monthly Profit Breakdown */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">इस महीने का मुनाफा</span>
-                <span className="font-extrabold text-emerald-700 text-sm">+{formatCurrency(salesMetrics.monthProfit)}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">मासिक औसत मार्जिन</span>
-                <span className="font-black text-slate-800 text-sm">{salesMetrics.monthMargin}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 3. STOCK ASSET & QUICK RE-STOCK BANNER                                    */}
-      {/* ========================================================================= */}
-      <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-slate-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-400/20">
-              <Package className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-base sm:text-lg text-white">
-                  दुकान स्टॉक मूल्यांकन (Stock Asset Valuation)
-                </h3>
-                <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2 py-0.5 rounded-full font-bold">
-                  {stockMetrics.totalCount} कुल सामान
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                दुकान में मौजूदा माल की खरीद लागत वैल्यू: <span className="text-white font-extrabold text-sm">{formatCurrency(stockMetrics.totalValuation)}</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {/* Low stock alert badge */}
-            {stockMetrics.lowStockCount > 0 ? (
-              <button
-                onClick={() => onNavigate('inventory')}
-                className="py-2 px-3 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <AlertTriangle className="w-4 h-4 text-rose-400 animate-pulse" />
-                <span>{stockMetrics.lowStockCount} सामान कम स्टॉक में</span>
-              </button>
-            ) : (
-              <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-xl">
-                ✅ पर्याप्त स्टॉक उपलब्ध
-              </span>
-            )}
-
-            {/* Direct Button to Buy Stock & Upload Bill */}
-            <button
-              onClick={() => setIsVendorPurchaseModalOpen(true)}
-              className="py-2.5 px-4 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-black rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <PackagePlus className="w-4 h-4" />
-              <span>+ नया माल खरीद व बिल अपलोड</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 4. HERO ACTION HUB (तुरंत कार्य शुरू करें)                                  */}
-      {/* ========================================================================= */}
-      <div>
-        <h2 className="text-xs font-black uppercase tracking-wider text-slate-500 mb-2.5">
-          त्वरित कार्य (Quick Navigation Hub)
-        </h2>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          {/* Action 1: New POS Bill */}
+        {/* Quick App Icons (Calculator, Gift, Desktop View) */}
+        <div className="flex items-center gap-3 text-indigo-900">
           <button
             onClick={() => onNavigate('pos')}
-            className="p-3.5 bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-700 transition-colors"
+            title="कैलकुलेटर / बिलिंग"
           >
-            <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <ShoppingCart className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">नया बिल (POS)</span>
-              <span className="text-[10px] text-slate-500 font-medium">काउंटर बिक्री</span>
-            </div>
+            <Calculator className="w-5 h-5 text-indigo-700" />
           </button>
-
-          {/* Action 2: Buy Stock & Upload Bill */}
-          <button
-            onClick={() => setIsVendorPurchaseModalOpen(true)}
-            className="p-3.5 bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <PackagePlus className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">+ माल खरीद व बिल</span>
-              <span className="text-[10px] text-indigo-700 font-bold">स्टॉक जोड़ें व बिल फोटो</span>
-            </div>
-          </button>
-
-          {/* Action 3: Customer Khata */}
-          <button
-            onClick={() => onNavigate('khata')}
-            className="p-3.5 bg-white hover:bg-rose-50/60 border border-slate-200 hover:border-rose-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">ग्राहक खाता</span>
-              <span className="text-[10px] text-slate-500 font-medium">बाज़ार उधारी वसूली</span>
-            </div>
-          </button>
-
-          {/* Action 4: Vendor Khata & Management */}
-          <button
-            onClick={() => onNavigate('vendors')}
-            className="p-3.5 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Building2 className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">सप्लायर / महाजन</span>
-              <span className="text-[10px] text-slate-500 font-medium">महाजन बकाया व बिल</span>
-            </div>
-          </button>
-
-          {/* Action 5: Stock / Catalog */}
           <button
             onClick={() => onNavigate('inventory')}
-            className="p-3.5 bg-white hover:bg-green-50/60 border border-slate-200 hover:border-green-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-700 transition-colors"
+            title="स्टॉक व ऑफर्स"
           >
-            <div className="w-11 h-11 rounded-xl bg-green-100 text-green-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Package className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">स्टॉक सूची</span>
-              <span className="text-[10px] text-slate-500 font-medium">कैटलॉग व रेट</span>
-            </div>
+            <Gift className="w-5 h-5 text-indigo-700" />
           </button>
-
-          {/* Action 6: Profit & Reports */}
           <button
             onClick={() => onNavigate('reports')}
-            className="p-3.5 bg-white hover:bg-purple-50/60 border border-slate-200 hover:border-purple-300 rounded-2xl shadow-xs flex flex-col items-center text-center gap-2 group transition-all cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-700 transition-colors"
+            title="डेस्कटॉप / रिपोर्ट्स"
           >
-            <div className="w-11 h-11 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xs font-extrabold text-slate-900 block">मुनाफा रिपोर्ट</span>
-              <span className="text-[10px] text-slate-500 font-medium">दैनिक व मासिक ऑडिट</span>
-            </div>
+            <Monitor className="w-5 h-5 text-indigo-700" />
           </button>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 5. RECENT ACTIVITY SPLIT: TODAY'S SALES VS RECENT VENDOR BILLS            */}
+      {/* 2. PROMO BANNER (e-Invoice & Multi-Device Sync)                           */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* LEFT: Recent Counter Bills */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                हालिया काउंटर बिक्री बिल (Recent Sales)
-              </h3>
-            </div>
+      {showBanner && (
+        <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-3.5 sm:p-4 shadow-md relative overflow-hidden">
+          <button
+            onClick={() => setShowBanner(false)}
+            className="absolute top-2 right-2 text-white/70 hover:text-white p-1 rounded-full text-xs"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="pr-6 space-y-2">
+            <p className="text-xs sm:text-sm font-bold leading-snug">
+              मोबाइल और लैपटॉप पर ऑटो-सिंक व सप्लायर बिल अपलोड अब लाइव है!
+            </p>
             <button
-              onClick={() => onNavigate('reports')}
-              className="text-xs font-bold text-emerald-700 hover:underline flex items-center gap-0.5 cursor-pointer"
+              onClick={() => onNavigate('settings')}
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-lg uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm"
             >
-              <span>सभी देखें</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <span>सिंक सेटिंग्स देखें →</span>
             </button>
           </div>
+        </div>
+      )}
 
-          <div className="space-y-2">
-            {recentInvoices.length > 0 ? (
-              recentInvoices.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex items-center justify-between gap-3 text-xs"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-slate-900">#{inv.invoiceNumber}</span>
-                      <span className="font-bold text-slate-700">{inv.customerName}</span>
-                      {inv.paymentMethod === 'UPI' && (
-                        <span className="bg-blue-100 text-blue-800 text-[10px] font-black px-1.5 py-0.2 rounded">UPI</span>
-                      )}
-                      {inv.paymentMethod === 'CASH' && (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-1.5 py-0.2 rounded">नकद</span>
-                      )}
-                      {inv.paymentMethod === 'CREDIT' && (
-                        <span className="bg-rose-100 text-rose-800 text-[10px] font-black px-1.5 py-0.2 rounded">उधार</span>
-                      )}
-                    </div>
-                    <div className="text-slate-500 text-[11px] mt-0.5">
-                      {formatDateTime(inv.createdAt)} • {inv.items.length} सामान ({inv.items.map(i => i.nameHi || i.nameEn).slice(0, 2).join(', ')}{inv.items.length > 2 ? '...' : ''})
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <span className="font-black text-sm text-slate-900 block">
-                      {formatCurrency(inv.grandTotal)}
-                    </span>
-                    {inv.dueAmount > 0 && (
-                      <span className="text-[10px] font-bold text-rose-600 block">
-                        बाकी: {formatCurrency(inv.dueAmount)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                आज कोई बिल नहीं बना। नया बिल बनाने के लिए '+ नया बिल' दबाएँ।
-              </div>
-            )}
+      {/* ========================================================================= */}
+      {/* 3. CORE 6-GRID FINANCIAL CARDS (EXACT MATCH TO USER SCREENSHOT)          */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* CARD 1: आप लेंगे (RECEIVABLES) - LIGHT GREEN */}
+        <div
+          onClick={() => onNavigate('khata')}
+          className="bg-[#EDF8F2] border border-[#CDEEDC] rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-2xs hover:shadow-sm cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <p className="text-xl sm:text-2xl font-black text-slate-900">
+              {formatCurrency(metrics.aapLenge)}
+            </p>
+            <ChevronRight className="w-4 h-4 text-emerald-600 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-2 flex items-center gap-1 text-emerald-800 font-extrabold text-xs sm:text-sm">
+            <span>आप लेंगे</span>
+            <span className="text-emerald-700 text-base font-black">↓</span>
           </div>
         </div>
 
-        {/* RIGHT: Recent Vendor Purchases & Uploaded Bills */}
-        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-indigo-600" />
-              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                हालिया सप्लायर माल खरीद व बिल (Vendor Purchases)
-              </h3>
+        {/* CARD 2: आप देंगे (PAYABLES) - LIGHT PINK */}
+        <div
+          onClick={() => onNavigate('vendors')}
+          className="bg-[#FDEEED] border border-[#F9D2D0] rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-2xs hover:shadow-sm cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <p className="text-xl sm:text-2xl font-black text-slate-900">
+              {formatCurrency(metrics.aapDenge)}
+            </p>
+            <ChevronRight className="w-4 h-4 text-rose-600 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <div className="mt-2 flex items-center gap-1 text-rose-700 font-extrabold text-xs sm:text-sm">
+            <span>आप देंगे</span>
+            <span className="text-rose-600 text-base font-black">↑</span>
+          </div>
+        </div>
+
+        {/* CARD 3: स्टॉक का मूल्य (STOCK ASSET) - WHITE CARD */}
+        <div
+          onClick={() => onNavigate('inventory')}
+          className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs hover:border-slate-300 cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                स्टॉक का मूल्य
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                {formatCurrency(metrics.stockValuation)}
+              </p>
             </div>
-            <button
-              onClick={() => onNavigate('vendors')}
-              className="text-xs font-bold text-indigo-700 hover:underline flex items-center gap-0.5 cursor-pointer"
-            >
-              <span>सप्लायर खाता देखें</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {inventoryItems.length} आइटम्स का कुल मूल्य
+          </p>
+        </div>
 
-          <div className="space-y-2">
-            {recentVendorBills.length > 0 ? (
-              recentVendorBills.map((entry) => {
-                const isPurchase = entry.type === 'PURCHASE';
-                return (
-                  <div
-                    key={entry.id}
-                    className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-black px-1.5 py-0.2 rounded ${isPurchase ? 'bg-indigo-100 text-indigo-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                          {isPurchase ? '📦 माल खरीद' : '💰 भुगतान'}
-                        </span>
-                        <span className="font-extrabold text-slate-900">{entry.vendorName}</span>
-                        {entry.billImageUrl && (
-                          <span className="bg-purple-100 text-purple-800 text-[10px] font-bold px-1.5 py-0.2 rounded">
-                            📸 बिल फोटो संलग्न
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-slate-500 text-[11px] mt-0.5">
-                        {formatDateTime(entry.createdAt)} • {entry.itemName ? `${entry.itemName} (${entry.itemQuantity || ''} ${entry.itemUnit || ''})` : entry.description}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className={`font-black text-sm block ${isPurchase ? 'text-indigo-950' : 'text-emerald-700'}`}>
-                        {formatCurrency(entry.amount)}
-                      </span>
-                      {isPurchase && (entry.dueAmount || 0) > 0 && (
-                        <span className="text-[10px] font-bold text-rose-600 block">
-                          बाकी: {formatCurrency(entry.dueAmount || 0)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-center py-8 text-slate-400 text-xs">
-                सप्लायर से माल खरीद दर्ज करने के लिए ऊपर '+ नया माल खरीद' दबाएँ।
-              </div>
-            )}
+        {/* CARD 4: बिक्री (TODAY'S SALE) - WHITE CARD */}
+        <div
+          onClick={() => onNavigate('reports')}
+          className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs hover:border-slate-300 cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                आज की बिक्री
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                {formatCurrency(metrics.todaySales)}
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
           </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            ऑल-टाइम: {formatCurrency(metrics.allTimeSales)}
+          </p>
+        </div>
+
+        {/* CARD 5: कुल बैलेंस (CASH + BANK) - WHITE CARD */}
+        <div
+          onClick={() => onNavigate('reports')}
+          className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs hover:border-slate-300 cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                कुल बैलेंस
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                {formatCurrency(metrics.totalBalance)}
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            कैश + ऑनलाइन बैलेंस
+          </p>
+        </div>
+
+        {/* CARD 6: रिपोर्ट (REPORTS & PROFIT) - WHITE CARD */}
+        <div
+          onClick={() => onNavigate('reports')}
+          className="bg-white border border-slate-200 rounded-2xl p-3.5 flex flex-col justify-between shadow-2xs hover:border-slate-300 cursor-pointer transition-all group"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                रिपोर्ट
+              </p>
+              <p className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                दुकान ऑडिट
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            सेल्स, पार्टी, मुनाफा...
+          </p>
         </div>
       </div>
 
-      {/* Submodal for Vendor Purchase with Bill Upload */}
+      {/* ========================================================================= */}
+      {/* 4. UNLIMITED REPORTS STRIP (CROWN PROMO)                                  */}
+      {/* ========================================================================= */}
+      <div
+        onClick={() => onNavigate('reports')}
+        className="bg-white border border-slate-200 hover:border-amber-400 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition-all shadow-2xs"
+      >
+        <div className="flex items-center gap-2.5">
+          <Crown className="w-5 h-5 text-amber-500 fill-amber-400" />
+          <span className="text-xs sm:text-sm font-extrabold text-slate-900">
+            विस्तृत दैनिक व मासिक मुनाफा रिपोर्ट्स देखें
+          </span>
+        </div>
+        <ChevronRight className="w-4 h-4 text-slate-400" />
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 5. TRANSACTIONS LIST (सारा लेन देन)                                       */}
+      {/* ========================================================================= */}
+      <div className="space-y-3 pt-1">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-extrabold text-slate-900">
+            सारा लेन देन (Transactions)
+          </h2>
+
+          {/* Date Range Pill */}
+          <button
+            onClick={() => setDateFilter(dateFilter === 'ALL' ? 'TODAY' : 'ALL')}
+            className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 text-indigo-900 rounded-full text-xs font-extrabold shadow-2xs cursor-pointer hover:bg-slate-50"
+          >
+            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{dateFilter === 'TODAY' ? 'आज का लेन-देन' : 'पिछले 365 दिन'}</span>
+          </button>
+        </div>
+
+        {/* Transaction Cards List */}
+        <div className="space-y-2">
+          {allTransactions.length > 0 ? (
+            allTransactions.map((tx) => (
+              <div
+                key={tx.id}
+                className="bg-white border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all"
+              >
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 leading-tight">
+                    {tx.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {tx.subtitle}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    {formatDateTime(tx.date)}
+                  </p>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <span className="text-base font-black text-slate-900 block">
+                    {formatCurrency(tx.amount)}
+                  </span>
+                  {tx.isDue ? (
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-black bg-rose-100 text-rose-700">
+                      बक़ाया ({formatCurrency(tx.dueAmount || 0)})
+                    </span>
+                  ) : (
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                      चुकता
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+              <FileText className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+              <p className="text-xs font-bold text-slate-600">कोई लेन-देन नहीं मिला</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                नया बिल बनाने के लिए नीचे '+ बिल / इन्वॉइस' दबाएँ।
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 6. STICKY FLOATING BOTTOM ACTION BAR (EXACT MATCH TO USER SCREENSHOT)     */}
+      {/* ========================================================================= */}
+      <div className="fixed bottom-14 left-0 right-0 z-30 px-4 py-2 pointer-events-none">
+        <div className="max-w-md mx-auto flex items-center justify-between gap-2 pointer-events-auto">
+          {/* LEFT BUTTON: पेमेंट-इन (Receive Payment) */}
+          <button
+            onClick={() => {
+              if (customers.length > 0) {
+                const debtor = customers.find(c => c.currentBalance > 0) || customers[0];
+                setSelectedCustomerForReceive(debtor);
+              }
+              setIsReceivePaymentOpen(true);
+            }}
+            className="flex-1 py-3 px-3 bg-[#242A38] hover:bg-slate-800 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+          >
+            <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+            <span>पेमेंट-इन</span>
+          </button>
+
+          {/* CENTER CIRCULAR PLUS BUTTON (+) */}
+          <button
+            onClick={() => setShowQuickActionMenu(true)}
+            className="w-12 h-12 rounded-full bg-[#48BB78] hover:bg-emerald-600 active:scale-90 text-white flex items-center justify-center shadow-xl border-2 border-white transition-all cursor-pointer shrink-0"
+            title="त्वरित मेन्यू"
+          >
+            <Plus className="w-7 h-7 stroke-[3]" />
+          </button>
+
+          {/* RIGHT BUTTON: + बिल / इन्वॉइस (Create New Bill) */}
+          <button
+            onClick={() => onNavigate('pos')}
+            className="flex-1 py-3 px-3 bg-[#4C51BF] hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ बिल / इन्वॉइस</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Quick Action Popup Menu (When Green Center + Button is clicked) */}
+      {showQuickActionMenu && (
+        <div 
+          onClick={() => setShowQuickActionMenu(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center p-3 animate-in fade-in"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-4 w-full max-w-sm space-y-2 mb-16 shadow-2xl border border-slate-200 animate-in slide-in-from-bottom-5"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <span className="text-xs font-black uppercase text-slate-500">त्वरित कार्य (Quick Action)</span>
+              <button onClick={() => setShowQuickActionMenu(false)} className="text-slate-400 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowQuickActionMenu(false);
+                onNavigate('pos');
+              }}
+              className="w-full p-3 bg-indigo-50 hover:bg-indigo-100 rounded-2xl flex items-center gap-3 text-left transition-all"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                <ShoppingCart className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-sm font-black text-indigo-950 block">+ नया ग्राहक बिल बनाएं</span>
+                <span className="text-[11px] text-indigo-700 font-medium">POS काउंटर बिक्री</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowQuickActionMenu(false);
+                setIsVendorPurchaseModalOpen(true);
+              }}
+              className="w-full p-3 bg-emerald-50 hover:bg-emerald-100 rounded-2xl flex items-center gap-3 text-left transition-all"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                <PackagePlus className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-sm font-black text-emerald-950 block">+ सप्लायर माल खरीद व बिल फोटो</span>
+                <span className="text-[11px] text-emerald-700 font-medium">स्टॉक जोड़ें व सप्लायर उधारी</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowQuickActionMenu(false);
+                onNavigate('khata');
+              }}
+              className="w-full p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center gap-3 text-left transition-all"
+            >
+              <div className="w-10 h-10 rounded-xl bg-slate-800 text-white flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-sm font-black text-slate-900 block">ग्राहक खाता बही</span>
+                <span className="text-[11px] text-slate-500 font-medium">उधारी वसूली व WhatsApp तकादा</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
+                setShowQuickActionMenu(false);
+                onNavigate('vendors');
+              }}
+              className="w-full p-3 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center gap-3 text-left transition-all"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-900 text-white flex items-center justify-center">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-sm font-black text-slate-900 block">सप्लायर / महाजन खाता</span>
+                <span className="text-[11px] text-slate-500 font-medium">महाजन बकाया व भुगतान</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Submodal: Vendor Purchase with Bill Photo Upload */}
       <VendorPurchaseModal
         isOpen={isVendorPurchaseModalOpen}
         onClose={() => setIsVendorPurchaseModalOpen(false)}
+      />
+
+      {/* Submodal: Receive Payment (पेमेंट-इन) */}
+      <ReceivePaymentModal
+        isOpen={isReceivePaymentOpen}
+        customer={selectedCustomerForReceive}
+        onClose={() => {
+          setIsReceivePaymentOpen(false);
+          setSelectedCustomerForReceive(null);
+        }}
       />
     </div>
   );
