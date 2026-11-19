@@ -207,7 +207,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-1.5 cursor-pointer">
           <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase">
-            M/S {settings.shopName || 'JYOTI GENERAL STORE'}
+            {settings.shopName?.toUpperCase().startsWith('M/S')
+              ? settings.shopName
+              : `M/S ${settings.shopName || 'JYOTI GENERAL STORE'}`}
           </h1>
           <span className="text-slate-400 text-xs">▼</span>
         </div>

@@ -152,8 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Top Navigation Tabs Bar (Visible on all screens, scrollable) */}
-        <nav className="bg-emerald-950/90 backdrop-blur border-t border-emerald-800/60">
+        {/* Top Navigation Tabs Bar (Desktop & Tablet only, mobile uses bottom bar) */}
+        <nav className="hidden sm:block bg-emerald-950/90 backdrop-blur border-t border-emerald-800/60">
           <div className="max-w-7xl mx-auto px-1 sm:px-6 flex items-center justify-between overflow-x-auto no-scrollbar">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;

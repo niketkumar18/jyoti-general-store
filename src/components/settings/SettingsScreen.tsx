@@ -14,10 +14,12 @@ import {
   ExternalLink,
   Camera,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Copy
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
+import { GOOGLE_APPS_SCRIPT_TEMPLATE } from '../../utils/googleSheetsSync';
 import { db } from '../../db';
 import { initialSettings, sampleItems, sampleCustomers } from '../../db/seedData';
 
@@ -28,6 +30,7 @@ export const SettingsScreen: React.FC = () => {
   const [formData, setFormData] = useState({ ...settings });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
   const handleManualSync = async () => {
@@ -462,6 +465,37 @@ export const SettingsScreen: React.FC = () => {
                     placeholder="https://script.google.com/macros/s/.../exec"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-800 focus:ring-2 focus:ring-emerald-500"
                   />
+                </div>
+
+                <div className="pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-slate-800">
+                      ⚡ Google Apps Script बैकएंड कोड:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_TEMPLATE);
+                        setCopiedScript(true);
+                        setTimeout(() => setCopiedScript(false), 2500);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    >
+                      {copiedScript ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedScript ? 'कोड कॉपी हो गया!' : '📋 नया कोड कॉपी करें'}</span>
+                    </button>
+                  </div>
+                  <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-[11px] text-amber-950 space-y-1">
+                    <div className="font-extrabold text-amber-900">📌 1 मिनट में लाइव कनेक्ट करने के 3 स्टेप्स:</div>
+                    <div>1. ऊपर <strong>"Google Sheet खोलें ↗"</strong> पर क्लिक करें &gt; <strong>Extensions</strong> &gt; <strong>Apps Script</strong> में जाएं।</div>
+                    <div>2. वहां मौजूद पुराना कोड हटाकर यह नया कोड पेस्ट करें और <strong>Save (💾)</strong> दबाएं।</div>
+                    <div>3. ऊपर <strong>Deploy &gt; Manage deployments</strong> (या New deployment) में Edit करके:</div>
+                    <div className="pl-3 font-semibold text-rose-800">
+                      • Execute as: <strong>"Me"</strong>
+                      <br />• Who has access: <strong>"Anyone"</strong> (यह बहुत ज़रूरी है ताकि मोबाइल व लैपटॉप दोनों सिंक हों)
+                    </div>
+                    <div>4. Deploy करके मिले Web App URL को ऊपर बॉक्स में पेस्ट कर दें!</div>
+                  </div>
                 </div>
               </div>
             )}

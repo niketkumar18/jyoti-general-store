@@ -23,6 +23,20 @@ export interface TwoWaySyncResult {
   message: string;
 }
 
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * DEN Kirana POS - 100% Free Google Sheets Cloud Database (2-Way Multi-Device Sync)
  * 
@@ -43,12 +57,20 @@ export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
 
 function doGet(e) {
   var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'STATUS';
-  var ss = null;
-  if (e && e.parameter && e.parameter.sheetId) {
-    try { ss = SpreadsheetApp.openById(e.parameter.sheetId); } catch(err) {}
+
+  // 1. FAST STATUS CHECK (Sub-second response, zero sheet overhead)
+  if (action === 'STATUS') {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'online',
+      app: 'DEN Kirana POS',
+      timestamp: Date.now()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
-  if (!ss) {
-    try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
+
+  var ss = null;
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
+  if (!ss && e && e.parameter && e.parameter.sheetId) {
+    try { ss = SpreadsheetApp.openById(e.parameter.sheetId); } catch(err) {}
   }
   if (!ss) {
     try { ss = SpreadsheetApp.openById('1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0'); } catch(err) {}
@@ -226,8 +248,6 @@ function doGet(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Default: STATUS check & guarantee all tabs exist
-  setupAllTabsNow();
   return ContentService.createTextOutput(JSON.stringify({
     status: 'online',
     app: 'DEN Kirana POS',
@@ -343,60 +363,66 @@ function doPost(e) {
       });
     }
 
-    // 5. WRITE CUSTOMERS (Full overwrite or update)
+    // 5. WRITE CUSTOMERS (Fast Bulk write)
     if (payload.customers && payload.customers.length > 0) {
       sheetCust.clear();
-      sheetCust.appendRow(['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
-      payload.customers.forEach(function(c) {
-        sheetCust.appendRow([
-          c.name,
+      var cRows = [['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']];
+      for (var ci = 0; ci < payload.customers.length; ci++) {
+        var c = payload.customers[ci];
+        cRows.push([
+          c.name || '',
           c.mobile || '',
-          c.creditLimit,
-          c.currentBalance,
-          c.riskLevel ? c.riskLevel.toUpperCase() : 'SAFE',
+          Number(c.creditLimit) || 2000,
+          Number(c.currentBalance) || 0,
+          c.riskLevel ? String(c.riskLevel).toUpperCase() : 'SAFE',
           c.address || c.notes || ''
         ]);
-      });
+      }
+      sheetCust.getRange(1, 1, cRows.length, 6).setValues(cRows);
     }
 
-    // 6. WRITE INVENTORY (Full overwrite or update)
+    // 6. WRITE INVENTORY (Fast Bulk write)
     if (payload.items && payload.items.length > 0) {
       sheetItems.clear();
-      sheetItems.appendRow(['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड', 'थोक सीमा', 'थोक दर (₹)', 'उपहार (मुफ्त)']);
-      payload.items.forEach(function(it) {
-        sheetItems.appendRow([
-          it.nameHi,
+      var iRows = [['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड', 'थोक सीमा', 'थोक दर (₹)', 'उपहार (मुफ्त)']];
+      for (var ii = 0; ii < payload.items.length; ii++) {
+        var it = payload.items[ii];
+        iRows.push([
+          it.nameHi || '',
           it.nameEn || '',
-          it.category,
-          it.unit,
-          it.salePrice,
-          it.costPrice || '',
-          it.stockQty,
-          it.lowStockThreshold,
+          it.category || 'other',
+          it.unit || 'PIECE',
+          Number(it.salePrice) || 0,
+          Number(it.costPrice) || 0,
+          Number(it.stockQty) || 0,
+          Number(it.lowStockThreshold) || 5,
           it.barcode || '',
           it.bulkDiscountThreshold || '',
           it.bulkDiscountRate || '',
           it.isComplementary ? 'हां' : 'नहीं'
         ]);
-      });
+      }
+      sheetItems.getRange(1, 1, iRows.length, 12).setValues(iRows);
     }
 
-    // 7. WRITE VENDORS
+    // 7. WRITE VENDORS (Fast Bulk write)
     if (payload.vendors && payload.vendors.length > 0) {
       sheetVendors.clear();
-      sheetVendors.appendRow(['सप्लायर का नाम', 'फर्म / एजेंसी का नाम', 'मोबाइल नंबर', 'श्रेणी', 'बकाया देना (₹)', 'कुल खरीद (₹)', 'कुल भुगतान (₹)', 'पता / विवरण']);
-      payload.vendors.forEach(function(v) {
-        sheetVendors.appendRow([
-          v.name,
+      var vRows = [['सप्लायर का नाम', 'फर्म / एजेंसी का नाम', 'मोबाइल नंबर', 'श्रेणी', 'बकाया देना (₹)', 'कुल खरीद (₹)', 'कुल भुगतान (₹)', 'पता / विवरण']];
+      for (var vi = 0; vi < payload.vendors.length; vi++) {
+        var v = payload.vendors[vi];
+        vRows.push([
+          v.name || '',
           v.firmName || '',
           v.mobile || '',
           v.category || '',
-          v.currentBalance || 0,
-          v.totalPurchased || 0,
-          v.totalPaid || 0,
+          Number(v.currentBalance) || 0,
+          Number(v.totalPurchased) || 0,
+          Number(v.totalPaid) || 0,
           v.address || v.notes || ''
         ]);
-      });
+      }
+      sheetVendors.getRange(1, 1, vRows.length, 8).setValues(vRows);
     }
 
     // 8. WRITE VENDOR LEDGER
@@ -638,18 +664,6 @@ export async function syncPendingToGoogleSheets(
       };
     }
 
-    // Ping check to verify Webhook URL is alive and accessible
-    const testUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=STATUS&_t=${Date.now()}`;
-    const pingResp = await fetch(testUrl).catch(() => null);
-    if (pingResp && !pingResp.ok) {
-      if (pingResp.status === 403) {
-        throw new Error('Google Apps Script अनुमति त्रुटि (403): कृपया Apps Script में "Who has access" को "Anyone" सेट करें और New version डिप्लॉय करें।');
-      }
-      if (pingResp.status === 404) {
-        throw new Error('Google Apps Script URL नहीं मिला (404): कृपया नया Web App URL बनाएं और DEN सेटिंग्स में पेस्ट करें।');
-      }
-    }
-
     const payload = {
       action: 'SYNC_PENDING',
       sheetId: extractSheetId(sheetDocumentUrl),
@@ -659,18 +673,18 @@ export async function syncPendingToGoogleSheets(
       timestamp: Date.now()
     };
 
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
+    }, 9000).catch(async () => {
       // Fallback
-      await fetch(webhookUrl.trim(), {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
 
     for (const inv of unsyncedInvoices) {
@@ -732,18 +746,24 @@ export async function pullFromGoogleSheets(
     const sheetId = extractSheetId(sheetDocumentUrl) || '';
     const fetchUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=PULL&sheetId=${encodeURIComponent(sheetId)}&_t=${Date.now()}`;
 
-    const resp = await fetch(fetchUrl);
+    const resp = await fetchWithTimeout(fetchUrl, {}, 9000);
     if (!resp.ok) {
       if (resp.status === 403) {
-        throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में Deploy > Manage deployments > Edit करके "Who has access" को "Anyone" चुनें और New version डिप्लॉय करें।');
+        throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में "Who has access" को "Anyone" चुनें।');
       }
       if (resp.status === 404) {
-        throw new Error('Google Apps Script URL नहीं मिला (HTTP 404): कृपया Apps Script में नया Web App URL बनाएं और DEN सेटिंग्स में पेस्ट करें।');
+        throw new Error('Google Apps Script URL नहीं मिला (HTTP 404)');
       }
       throw new Error(`Google Sheets सर्वर से संपर्क नहीं हो सका (HTTP ${resp.status})`);
     }
 
-    const data = await resp.json();
+    const text = await resp.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error('Google Apps Script ने अमान्य डेटा लौटाया (Page not found / HTML error)। कृपया Google Sheet में नया Web App डिप्लॉय करें (Who has access: Anyone)।');
+    }
 
     // Check if old Apps Script is running (returns status 'online' instead of 'success')
     if (data.status === 'online' && !data.invoices) {
@@ -1196,7 +1216,7 @@ export async function syncFullDatabaseToGoogleSheets(
   try {
     // Ping check to verify Webhook URL is alive and accessible
     const testUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=STATUS&_t=${Date.now()}`;
-    const pingResp = await fetch(testUrl).catch(() => null);
+    const pingResp = await fetchWithTimeout(testUrl, {}, 5000).catch(() => null);
     if (pingResp && !pingResp.ok) {
       if (pingResp.status === 403) {
         throw new Error('Google Apps Script अनुमति त्रुटि (403): कृपया Apps Script में "Who has access" को "Anyone" सेट करें और New version डिप्लॉय करें।');
@@ -1226,17 +1246,17 @@ export async function syncFullDatabaseToGoogleSheets(
       timestamp: Date.now()
     };
 
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
 
     for (const inv of allInvoices) {
@@ -1287,17 +1307,17 @@ export async function syncItemsToGoogleSheets(
       items: items,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1328,17 +1348,17 @@ export async function deleteItemFromGoogleSheets(
       items: remainingItems,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1365,17 +1385,17 @@ export async function syncCustomersToGoogleSheets(
       customers: customers,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1405,17 +1425,17 @@ export async function deleteCustomerFromGoogleSheets(
       customers: remainingCustomers,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1442,17 +1462,17 @@ export async function syncVendorsToGoogleSheets(
       vendors: vendors,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1482,17 +1502,17 @@ export async function deleteVendorFromGoogleSheets(
       vendors: remainingVendors,
       timestamp: Date.now()
     };
-    await fetch(webhookUrl.trim(), {
+    await fetchWithTimeout(webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }).catch(async () => {
-      await fetch(webhookUrl.trim(), {
+    }, 9000).catch(async () => {
+      await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      });
+      }, 5000).catch(() => null);
     });
     return true;
   } catch (err) {
