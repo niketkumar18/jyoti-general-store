@@ -158,6 +158,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Manual 2-way sync (called when user clicks ↻ Sync Now button in Navbar)
   const syncNow = async (): Promise<string> => {
+    if (isSyncingRef.current) {
+      return 'सिंक पहले से चल रहा है, कृपया प्रतीक्षा करें...';
+    }
     if (!settings.googleSheetsUrl) {
       return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
     }

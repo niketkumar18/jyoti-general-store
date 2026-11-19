@@ -23,15 +23,24 @@ export interface TwoWaySyncResult {
   message: string;
 }
 
-export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 45000): Promise<Response> {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const id = setTimeout(() => {
+    try {
+      controller.abort();
+    } catch {}
+  }, timeoutMs);
   try {
     const response = await fetch(url, {
       ...options,
       signal: controller.signal
     });
     return response;
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || String(err?.message || '').toLowerCase().includes('aborted')) {
+      throw new Error('Google Sheets सर्वर से संपर्क समय समाप्त (Timeout)। कृपया 5 सेकंड बाद दोबारा "ताज़ा करें" दबाएं।');
+    }
+    throw err;
   } finally {
     clearTimeout(id);
   }
@@ -677,14 +686,14 @@ export async function syncPendingToGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 45000).catch(async () => {
       // Fallback
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 15000).catch(() => null);
     });
 
     for (const inv of unsyncedInvoices) {
@@ -746,7 +755,7 @@ export async function pullFromGoogleSheets(
     const sheetId = extractSheetId(sheetDocumentUrl) || '';
     const fetchUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=PULL&sheetId=${encodeURIComponent(sheetId)}&_t=${Date.now()}`;
 
-    const resp = await fetchWithTimeout(fetchUrl, {}, 35000);
+    const resp = await fetchWithTimeout(fetchUrl, {}, 45000);
     if (!resp.ok) {
       if (resp.status === 403) {
         throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में "Who has access" को "Anyone" चुनें।');
