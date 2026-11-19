@@ -799,9 +799,12 @@ export async function pullFromGoogleSheets(
 
     // A. Sync Invoices from Cloud into Local IndexedDB
     if (Array.isArray(data.invoices) && data.invoices.length > 0) {
+      const allLocalInvoices = await db.invoices.toArray();
+      const cloudInvNums = new Set(data.invoices.map((i: any) => String(i.invoiceNumber || '').trim()).filter(Boolean));
+
       for (const cloudInv of data.invoices) {
         if (!cloudInv.invoiceNumber) continue;
-        const exists = await db.invoices.where('invoiceNumber').equals(cloudInv.invoiceNumber).first();
+        const exists = allLocalInvoices.find(i => i.invoiceNumber === cloudInv.invoiceNumber);
         if (!exists) {
           const items = (Array.isArray(cloudInv.items) && cloudInv.items.length > 0)
             ? cloudInv.items
@@ -817,7 +820,22 @@ export async function pullFromGoogleSheets(
                 }
               ];
 
-          await db.invoices.add({
+          const newId = await db.invoices.add({
+            invoiceNumber: cloudInv.invoiceNumber,
+            customerName: cloudInv.customerName || 'नकद ग्राहक',
+            customerMobile: cloudInv.customerMobile || '',
+            items: items,
+            subtotal: cloudInv.subtotal || cloudInv.grandTotal,
+            discount: cloudInv.discount || 0,
+            grandTotal: cloudInv.grandTotal,
+            paidAmount: cloudInv.paidAmount,
+            dueAmount: cloudInv.dueAmount,
+            paymentMethod: cloudInv.paymentMethod || 'CASH',
+            syncedToGoogle: true,
+            createdAt: cloudInv.createdAt || Date.now()
+          });
+          allLocalInvoices.push({
+            id: newId,
             invoiceNumber: cloudInv.invoiceNumber,
             customerName: cloudInv.customerName || 'नकद ग्राहक',
             customerMobile: cloudInv.customerMobile || '',
@@ -854,34 +872,45 @@ export async function pullFromGoogleSheets(
           }
         }
       }
+
+      // If an invoice was deleted from Google Sheets, delete it locally as well
+      // (Only delete if it was already synced to Google, to avoid deleting freshly created offline invoices)
+      if (cloudInvNums.size > 0) {
+        for (const localInv of allLocalInvoices) {
+          if (localInv.id && localInv.syncedToGoogle && localInv.invoiceNumber && !cloudInvNums.has(localInv.invoiceNumber.trim())) {
+            await db.invoices.delete(localInv.id);
+          }
+        }
+      }
     }
 
     // B. Sync Ledger from Cloud
     if (Array.isArray(data.ledgers) && data.ledgers.length > 0) {
+      const allLocalLedgers = await db.ledger.toArray();
       for (const cloudLed of data.ledgers) {
-        const existing = await db.ledger
-          .where('amount')
-          .equals(cloudLed.amount)
-          .filter((l) => 
-            l.customerName === cloudLed.customerName && 
-            l.type === cloudLed.type &&
-            (cloudLed.invoiceNumber ? l.invoiceNumber === cloudLed.invoiceNumber : true)
-          )
-          .first();
+        if (!cloudLed.customerName) continue;
+        const existing = allLocalLedgers.find((l) => 
+          l.customerName === cloudLed.customerName && 
+          l.type === cloudLed.type &&
+          Number(l.amount) === Number(cloudLed.amount) &&
+          (cloudLed.invoiceNumber ? l.invoiceNumber === cloudLed.invoiceNumber : true)
+        );
 
         if (!existing) {
-          await db.ledger.add({
+          const newEntry = {
             customerId: 0,
             customerName: cloudLed.customerName,
             type: cloudLed.type,
-            amount: cloudLed.amount,
+            amount: Number(cloudLed.amount) || 0,
             paymentMode: cloudLed.paymentMode,
             invoiceNumber: cloudLed.invoiceNumber,
             description: cloudLed.description || '',
-            runningBalance: cloudLed.runningBalance,
+            runningBalance: Number(cloudLed.runningBalance) || 0,
             syncedToGoogle: true,
-            createdAt: cloudLed.createdAt || Date.now()
-          });
+            createdAt: Number(cloudLed.createdAt) || Date.now()
+          };
+          const newId = await db.ledger.add(newEntry);
+          allLocalLedgers.push({ ...newEntry, id: newId });
           newLedgersCount++;
         }
       }
@@ -900,9 +929,10 @@ export async function pullFromGoogleSheets(
         if (nameTrim) cloudCustKeys.add(`name:${nameTrim.toLowerCase()}`);
         if (mobileTrim && mobileTrim !== '0000000000') cloudCustKeys.add(`mob:${mobileTrim}`);
 
-        const existing = mobileTrim && mobileTrim !== '0000000000'
-          ? await db.customers.where('mobile').equals(mobileTrim).first()
-          : await db.customers.where('name').equals(nameTrim).first();
+        const existing = allLocalCust.find(c => 
+          (mobileTrim && mobileTrim !== '0000000000' && c.mobile?.trim() === mobileTrim) ||
+          (nameTrim && c.name?.trim().toLowerCase() === nameTrim.toLowerCase())
+        );
 
         if (existing && existing.id) {
           await db.customers.update(existing.id, {
@@ -915,7 +945,7 @@ export async function pullFromGoogleSheets(
           });
           updatedCustomersCount++;
         } else if (!existing) {
-          await db.customers.add({
+          const newCust = {
             name: nameTrim,
             mobile: mobileTrim || '0000000000',
             address: cloudCust.address || '',
@@ -924,7 +954,9 @@ export async function pullFromGoogleSheets(
             riskLevel: cloudCust.riskLevel || 'safe',
             createdAt: Date.now(),
             updatedAt: Date.now()
-          });
+          };
+          const newId = await db.customers.add(newCust as any);
+          allLocalCust.push({ ...newCust, id: newId } as any);
           updatedCustomersCount++;
         }
       }
@@ -957,14 +989,14 @@ export async function pullFromGoogleSheets(
         if (nameEnTrim) cloudItemKeys.add(`en:${nameEnTrim.toLowerCase()}`);
 
         let existing = barcodeTrim
-          ? await db.items.where('barcode').equals(barcodeTrim).first()
+          ? allLocalItems.find(it => it.barcode && it.barcode.trim() === barcodeTrim)
           : null;
 
         if (!existing && nameHiTrim) {
-          existing = await db.items.where('nameHi').equals(nameHiTrim).first();
+          existing = allLocalItems.find(it => it.nameHi && it.nameHi.trim().toLowerCase() === nameHiTrim.toLowerCase());
         }
         if (!existing && nameEnTrim) {
-          existing = await db.items.where('nameEn').equals(nameEnTrim).first();
+          existing = allLocalItems.find(it => it.nameEn && it.nameEn.trim().toLowerCase() === nameEnTrim.toLowerCase());
         }
         if (!existing && (nameHiTrim || nameEnTrim)) {
           existing = allLocalItems.find(it =>
@@ -991,7 +1023,7 @@ export async function pullFromGoogleSheets(
           });
           updatedItemsCount++;
         } else {
-          await db.items.add({
+          const newItem = {
             nameHi: nameHiTrim || nameEnTrim,
             nameEn: nameEnTrim || nameHiTrim,
             category: cloudItem.category || 'other',
@@ -1006,7 +1038,9 @@ export async function pullFromGoogleSheets(
             isComplementary: Boolean(cloudItem.isComplementary),
             createdAt: Date.now(),
             updatedAt: Date.now()
-          });
+          };
+          const newId = await db.items.add(newItem as any);
+          allLocalItems.push({ ...newItem, id: newId } as any);
           updatedItemsCount++;
         }
       }
@@ -1038,9 +1072,10 @@ export async function pullFromGoogleSheets(
         if (nameTrim) cloudVendorKeys.add(`name:${nameTrim.toLowerCase()}`);
         if (mobileTrim && mobileTrim !== '0000000000') cloudVendorKeys.add(`mob:${mobileTrim}`);
 
-        const existing = mobileTrim && mobileTrim !== '0000000000'
-          ? await db.vendors.where('mobile').equals(mobileTrim).first()
-          : await db.vendors.where('name').equals(nameTrim).first();
+        const existing = allLocalVendors.find(v => 
+          (mobileTrim && mobileTrim !== '0000000000' && v.mobile?.trim() === mobileTrim) ||
+          (nameTrim && v.name?.trim().toLowerCase() === nameTrim.toLowerCase())
+        );
 
         if (existing && existing.id) {
           await db.vendors.update(existing.id, {
@@ -1055,7 +1090,7 @@ export async function pullFromGoogleSheets(
           });
           updatedVendorsCount++;
         } else if (!existing) {
-          await db.vendors.add({
+          const newV = {
             name: nameTrim,
             firmName: cloudV.firmName || '',
             mobile: mobileTrim || '',
@@ -1066,7 +1101,9 @@ export async function pullFromGoogleSheets(
             totalPaid: cloudV.totalPaid || 0,
             createdAt: Date.now(),
             updatedAt: Date.now()
-          });
+          };
+          const newId = await db.vendors.add(newV as any);
+          allLocalVendors.push({ ...newV, id: newId } as any);
           updatedVendorsCount++;
         }
       }
@@ -1085,32 +1122,34 @@ export async function pullFromGoogleSheets(
 
     // F. Sync VendorLedger from Cloud
     if (Array.isArray(data.vendorLedgers) && data.vendorLedgers.length > 0) {
+      const allLocalVL = await db.vendorLedger.toArray();
+      const allLocalVendors = await db.vendors.toArray();
       for (const cloudVL of data.vendorLedgers) {
-        const existing = await db.vendorLedger
-          .where('amount')
-          .equals(cloudVL.amount)
-          .filter((l) =>
-            l.vendorName === cloudVL.vendorName &&
-            l.type === cloudVL.type &&
-            (cloudVL.billNumber ? l.billNumber === cloudVL.billNumber : true)
-          )
-          .first();
+        if (!cloudVL.vendorName) continue;
+        const existing = allLocalVL.find((l) =>
+          l.vendorName === cloudVL.vendorName &&
+          l.type === cloudVL.type &&
+          Number(l.amount) === Number(cloudVL.amount) &&
+          (cloudVL.billNumber ? l.billNumber === cloudVL.billNumber : true)
+        );
 
         if (!existing) {
-          const matchedVendor = await db.vendors.where('name').equals(cloudVL.vendorName).first();
-          await db.vendorLedger.add({
+          const matchedVendor = allLocalVendors.find(v => v.name === cloudVL.vendorName);
+          const newVLEntry = {
             vendorId: matchedVendor?.id || 0,
             vendorName: cloudVL.vendorName,
             type: cloudVL.type,
-            amount: cloudVL.amount,
-            paidAmount: cloudVL.paidAmount,
-            dueAmount: cloudVL.dueAmount,
+            amount: Number(cloudVL.amount) || 0,
+            paidAmount: Number(cloudVL.paidAmount) || 0,
+            dueAmount: Number(cloudVL.dueAmount) || 0,
             billNumber: cloudVL.billNumber,
             description: cloudVL.description || '',
-            runningBalance: cloudVL.runningBalance || 0,
+            runningBalance: Number(cloudVL.runningBalance) || 0,
             syncedToGoogle: true,
-            createdAt: cloudVL.createdAt || Date.now()
-          });
+            createdAt: Number(cloudVL.createdAt) || Date.now()
+          };
+          const newId = await db.vendorLedger.add(newVLEntry);
+          allLocalVL.push({ ...newVLEntry, id: newId });
         }
       }
     }

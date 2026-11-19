@@ -33,6 +33,15 @@ export class DenDatabase extends Dexie {
       vendorLedger: '++id, vendorId, type, itemId, createdAt',
       settings: 'key'
     });
+    this.version(3).stores({
+      items: '++id, nameEn, nameHi, category, unit, barcode, stockQty, updatedAt',
+      customers: '++id, name, mobile, riskLevel, currentBalance, updatedAt',
+      invoices: '++id, invoiceNumber, customerId, customerMobile, paymentMethod, syncedToGoogle, createdAt',
+      ledger: '++id, customerId, customerName, type, amount, billId, invoiceNumber, syncedToGoogle, createdAt',
+      vendors: '++id, name, mobile, firmName, currentBalance, updatedAt',
+      vendorLedger: '++id, vendorId, vendorName, type, amount, billNumber, itemId, createdAt',
+      settings: 'key'
+    });
   }
 }
 
