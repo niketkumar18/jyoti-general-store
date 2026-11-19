@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LanguageProvider } from './context/LanguageContext';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Navbar, type ActiveTab } from './components/common/Navbar';
 import { InstallPwaBanner } from './components/common/InstallPwaBanner';
@@ -35,6 +35,7 @@ const getTabFromHash = (): ActiveTab => {
 const AppContent: React.FC = () => {
   const [activeTab, setActiveTabState] = useState<ActiveTab>(getTabFromHash);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { triggerSilentSync } = useSettings();
 
   // Sync state with window.location.hash so direct paths like /#vendors work
   useEffect(() => {
@@ -50,6 +51,7 @@ const AppContent: React.FC = () => {
     const onHashChange = () => {
       const tab = getTabFromHash();
       setActiveTabState(tab);
+      triggerSilentSync();
     };
 
     window.addEventListener('hashchange', onHashChange);
@@ -63,6 +65,7 @@ const AppContent: React.FC = () => {
     }
     // Scroll smoothly to top when switching views
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    triggerSilentSync();
   };
 
   const showToast = (msg: string) => {

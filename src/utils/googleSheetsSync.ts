@@ -23,7 +23,7 @@ export interface TwoWaySyncResult {
   message: string;
 }
 
-export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 45000): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 12000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => {
     try {
@@ -43,6 +43,43 @@ export async function fetchWithTimeout(url: string, options: RequestInit = {}, t
     throw err;
   } finally {
     clearTimeout(id);
+  }
+}
+
+/**
+ * Fast direct POST to Google Apps Script Web App.
+ * Uses mode: 'no-cors' with Content-Type: text/plain to avoid preflight OPTIONS checks
+ * and cross-origin redirect timeouts. Resolves in hundreds of milliseconds.
+ */
+export async function postToAppsScript(
+  webhookUrl: string,
+  payload: any,
+  timeoutMs = 12000
+): Promise<boolean> {
+  const cleanUrl = webhookUrl.trim();
+  const bodyStr = JSON.stringify(payload);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    try {
+      controller.abort();
+    } catch {}
+  }, timeoutMs);
+
+  try {
+    await fetch(cleanUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: bodyStr,
+      signal: controller.signal
+    });
+    return true;
+  } catch (err: any) {
+    console.warn('postToAppsScript failed:', err);
+    return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -316,30 +353,34 @@ function doPost(e) {
       var homeSheet = ss.getSheetByName('मुख्य डैशबोर्ड') || ss.getSheetByName('Sheet1') || ss.getSheetByName('शीट1');
       if (homeSheet) {
         homeSheet.setName('मुख्य डैशबोर्ड');
+        var homeRows = [
+          ['🏪 DEN किराना POS एवं डिजिटल खाता बही (2-Way Live Sync Active)', ''],
+          ['', ''],
+          ['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 6 अलग-अलग टैब्स (Tabs) में सुरक्षित है:', ''],
+          ['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल, छूट, नकद व उधार राशि'],
+          ['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब'],
+          ['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया'],
+          ['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक'],
+          ['5. 🏭 Vendors टैब:', 'थोक सप्लायर, डीलर, फर्म नाम और उनका बकाया हिसाब'],
+          ['6. 🚚 VendorLedger टैब:', 'सप्लायर खरीद इनवर्ड बिल व भुगतान बहीखाता'],
+          ['', ''],
+          ['👉 मोबाइल, लैपटॉप या टैबलेट — सभी डिवाइस इसी गूगल शीट से 100% सिंक रहते हैं।', ''],
+          ['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]
+        ];
         homeSheet.clear();
-        homeSheet.appendRow(['🏪 DEN किराना POS एवं डिजिटल खाता बही (2-Way Live Sync Active)']);
-        homeSheet.appendRow(['']);
-        homeSheet.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 6 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
-        homeSheet.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल, छूट, नकद व उधार राशि']);
-        homeSheet.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब']);
-        homeSheet.appendRow(['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया']);
-        homeSheet.appendRow(['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक']);
-        homeSheet.appendRow(['5. 🏭 Vendors टैब:', 'थोक सप्लायर, डीलर, फर्म नाम और उनका बकाया हिसाब']);
-        homeSheet.appendRow(['6. 🚚 VendorLedger टैब:', 'सप्लायर खरीद इनवर्ड बिल व भुगतान बहीखाता']);
-        homeSheet.appendRow(['']);
-        homeSheet.appendRow(['👉 मोबाइल, लैपटॉप या टैबलेट — सभी डिवाइस इसी गूगल शीट से 100% सिंक रहते हैं।']);
-        homeSheet.appendRow(['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
+        homeSheet.getRange(1, 1, homeRows.length, 2).setValues(homeRows);
       }
     } catch(errH) {}
 
-    // 3. WRITE INVOICES
+    // 3. WRITE INVOICES (Fast batch write)
     if (payload.invoices && payload.invoices.length > 0) {
+      var invRows = [];
       payload.invoices.forEach(function(inv) {
         var itemsSummary = (inv.items || []).map(function(it) {
           return (it.nameHi || it.nameEn) + ' (' + it.quantity + ' ' + it.unit + ' @ ₹' + it.unitPrice + ')';
         }).join(', ');
 
-        sheetInvoices.appendRow([
+        invRows.push([
           new Date(inv.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           inv.invoiceNumber,
           inv.customerName || 'नकद ग्राहक',
@@ -354,12 +395,16 @@ function doPost(e) {
           JSON.stringify(inv.items || [])
         ]);
       });
+      if (invRows.length > 0) {
+        sheetInvoices.getRange(sheetInvoices.getLastRow() + 1, 1, invRows.length, 12).setValues(invRows);
+      }
     }
 
-    // 4. WRITE LEDGERS
+    // 4. WRITE LEDGERS (Fast batch write)
     if (payload.ledgers && payload.ledgers.length > 0) {
+      var ledRows = [];
       payload.ledgers.forEach(function(led) {
-        sheetLedger.appendRow([
+        ledRows.push([
           new Date(led.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           led.customerName,
           led.type === 'DEBIT' ? 'उधार (DEBIT)' : 'जमा (CREDIT)',
@@ -370,6 +415,9 @@ function doPost(e) {
           led.runningBalance
         ]);
       });
+      if (ledRows.length > 0) {
+        sheetLedger.getRange(sheetLedger.getLastRow() + 1, 1, ledRows.length, 8).setValues(ledRows);
+      }
     }
 
     // 5. WRITE CUSTOMERS (Fast Bulk write)
@@ -434,10 +482,11 @@ function doPost(e) {
       sheetVendors.getRange(1, 1, vRows.length, 8).setValues(vRows);
     }
 
-    // 8. WRITE VENDOR LEDGER
+    // 8. WRITE VENDOR LEDGER (Fast batch write)
     if (payload.vendorLedgers && payload.vendorLedgers.length > 0) {
+      var vlRows = [];
       payload.vendorLedgers.forEach(function(vl) {
-        sheetVL.appendRow([
+        vlRows.push([
           new Date(vl.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           vl.vendorName,
           vl.type === 'PURCHASE' ? 'माल खरीदा (PURCHASE)' : 'रुपये चुकाए (PAYMENT)',
@@ -449,6 +498,9 @@ function doPost(e) {
           vl.runningBalance || 0
         ]);
       });
+      if (vlRows.length > 0) {
+        sheetVL.getRange(sheetVL.getLastRow() + 1, 1, vlRows.length, 9).setValues(vlRows);
+      }
     }
 
     // 9. DELETE ITEM ACTION
@@ -682,29 +734,22 @@ export async function syncPendingToGoogleSheets(
       timestamp: Date.now()
     };
 
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 45000).catch(async () => {
-      // Fallback
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 15000).catch(() => null);
-    });
+    const ok = await postToAppsScript(webhookUrl, payload, 12000);
+    if (!ok) {
+      throw new Error('Google Sheets में डेटा भेजने में विफल');
+    }
 
-    for (const inv of unsyncedInvoices) {
-      if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
-    }
-    for (const led of unsyncedLedgers) {
-      if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
-    }
-    for (const vl of unsyncedVendorLedgers) {
-      if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
-    }
+    await db.transaction('rw', [db.invoices, db.ledger, db.vendorLedger], async () => {
+      for (const inv of unsyncedInvoices) {
+        if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
+      }
+      for (const led of unsyncedLedgers) {
+        if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
+      }
+      for (const vl of unsyncedVendorLedgers) {
+        if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
+      }
+    });
 
     return {
       success: true,
@@ -755,7 +800,7 @@ export async function pullFromGoogleSheets(
     const sheetId = extractSheetId(sheetDocumentUrl) || '';
     const fetchUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=PULL&sheetId=${encodeURIComponent(sheetId)}&_t=${Date.now()}`;
 
-    const resp = await fetchWithTimeout(fetchUrl, {}, 45000);
+    const resp = await fetchWithTimeout(fetchUrl, {}, 12000);
     if (!resp.ok) {
       if (resp.status === 403) {
         throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में "Who has access" को "Anyone" चुनें।');
@@ -797,7 +842,8 @@ export async function pullFromGoogleSheets(
     let updatedItemsCount = 0;
     let updatedVendorsCount = 0;
 
-    // A. Sync Invoices from Cloud into Local IndexedDB
+    await db.transaction('rw', [db.invoices, db.ledger, db.customers, db.items, db.vendors, db.vendorLedger], async () => {
+      // A. Sync Invoices from Cloud into Local IndexedDB
     if (Array.isArray(data.invoices) && data.invoices.length > 0) {
       const allLocalInvoices = await db.invoices.toArray();
       const cloudInvNums = new Set(data.invoices.map((i: any) => String(i.invoiceNumber || '').trim()).filter(Boolean));
@@ -1153,6 +1199,7 @@ export async function pullFromGoogleSheets(
         }
       }
     }
+  });
 
     return {
       success: true,
@@ -1294,28 +1341,22 @@ export async function syncFullDatabaseToGoogleSheets(
       timestamp: Date.now()
     };
 
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
+    const ok = await postToAppsScript(webhookUrl, payload, 15000);
+    if (!ok) {
+      throw new Error('Google Sheets में पूर्ण डेटा सिंक करने में विफल');
+    }
 
-    for (const inv of allInvoices) {
-      if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
-    }
-    for (const led of allLedgers) {
-      if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
-    }
-    for (const vl of allVendorLedgers) {
-      if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
-    }
+    await db.transaction('rw', [db.invoices, db.ledger, db.vendorLedger], async () => {
+      for (const inv of allInvoices) {
+        if (inv.id) await db.invoices.update(inv.id, { syncedToGoogle: true });
+      }
+      for (const led of allLedgers) {
+        if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
+      }
+      for (const vl of allVendorLedgers) {
+        if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
+      }
+    });
 
     return {
       success: true,
@@ -1355,19 +1396,7 @@ export async function syncItemsToGoogleSheets(
       items: items,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to sync items to Google Sheets:', err);
     return false;
@@ -1396,19 +1425,7 @@ export async function deleteItemFromGoogleSheets(
       items: remainingItems,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to delete item from Google Sheets:', err);
     return false;
@@ -1433,19 +1450,7 @@ export async function syncCustomersToGoogleSheets(
       customers: customers,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to sync customers to Google Sheets:', err);
     return false;
@@ -1473,19 +1478,7 @@ export async function deleteCustomerFromGoogleSheets(
       customers: remainingCustomers,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to delete customer from Google Sheets:', err);
     return false;
@@ -1510,19 +1503,7 @@ export async function syncVendorsToGoogleSheets(
       vendors: vendors,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to sync vendors to Google Sheets:', err);
     return false;
@@ -1550,19 +1531,7 @@ export async function deleteVendorFromGoogleSheets(
       vendors: remainingVendors,
       timestamp: Date.now()
     };
-    await fetchWithTimeout(webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    }, 30000).catch(async () => {
-      await fetchWithTimeout(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      }, 10000).catch(() => null);
-    });
-    return true;
+    return await postToAppsScript(webhookUrl, payload, 12000);
   } catch (err) {
     console.error('Failed to delete vendor from Google Sheets:', err);
     return false;

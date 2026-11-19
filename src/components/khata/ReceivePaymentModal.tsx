@@ -145,9 +145,6 @@ export const ReceivePaymentModal: React.FC<ReceivePaymentModalProps> = ({
       // 3. Instant 2-way sync to Google Sheets
       if (settings.googleSheetsUrl) {
         syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
-          .then(() => {
-            syncCustomersToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
-          })
           .catch((e) => console.error('Real-time Google Sheets sync error:', e));
       }
 

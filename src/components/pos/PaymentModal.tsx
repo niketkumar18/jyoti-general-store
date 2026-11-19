@@ -249,15 +249,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       }
 
-      // 4. Instant 2-way sync to Google Sheets (Pushes new bill and pulls other device updates)
+      // 4. Instant fast 2-way sync to Google Sheets (Pushes new bill and pulls cloud updates)
       if (settings.googleSheetsUrl) {
         syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
-          .then(() => {
-            syncItemsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
-            if (customer) {
-              syncCustomersToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
-            }
-          })
           .catch((e) => console.error('Real-time Google Sheets sync error:', e));
       }
 

@@ -11,6 +11,7 @@ interface SettingsContextType {
   isSyncing: boolean;
   syncNow: () => Promise<string>;
   syncFullNow: () => Promise<string>;
+  triggerSilentSync: () => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -20,14 +21,46 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const isSyncingRef = useRef(false);
+  const inFlightSyncRef = useRef<Promise<any> | null>(null);
   const settingsRef = useRef(settings);
 
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
 
+  // Helper for silent background 2-way sync (does NOT freeze UI or disable buttons)
+  const triggerSilentTwoWaySync = async (url: string, sheetDocUrl?: string) => {
+    if (inFlightSyncRef.current || !url || !navigator.onLine) return;
+    
+    inFlightSyncRef.current = syncTwoWay(url, sheetDocUrl)
+      .then((res) => {
+        if (res && res.success) {
+          setSettings((prev) => ({ ...prev, lastSyncedAt: Date.now() }));
+        }
+        return res;
+      })
+      .catch((err) => {
+        console.warn('Silent background sync error:', err);
+        return null;
+      })
+      .finally(() => {
+        inFlightSyncRef.current = null;
+      });
+
+    return inFlightSyncRef.current;
+  };
+
+  const triggerSilentSync = () => {
+    if (settingsRef.current.googleSheetsUrl && navigator.onLine) {
+      triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
+    }
+  };
+
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      triggerSilentSync();
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
@@ -48,6 +81,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           await db.settings.put({ key: 'shop_settings', value: effective });
         }
       }
+
+      // Always guarantee autoSync is enabled
+      effective.autoSync = true;
 
       // Ensure default Google Sheet document URL is set to the master sheet with gid=1348342111
       if (!effective.googleSheetDocumentUrl || effective.googleSheetDocumentUrl.includes('sheets.google.com') || !effective.googleSheetDocumentUrl.includes('1348342111')) {
@@ -92,31 +128,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
-  // Helper for silent background 2-way sync
-  const triggerSilentTwoWaySync = async (url: string, sheetDocUrl?: string) => {
-    if (isSyncingRef.current || !url || !navigator.onLine) return;
-    isSyncingRef.current = true;
-    setIsSyncing(true);
-    try {
-      const res = await syncTwoWay(url, sheetDocUrl);
-      if (res.success) {
-        setSettings((prev) => ({ ...prev, lastSyncedAt: Date.now() }));
-      }
-    } catch (e) {
-      // silent background error
-    } finally {
-      isSyncingRef.current = false;
-      setIsSyncing(false);
-    }
-  };
-
   // Auto-sync on window focus or tab visibility change
   useEffect(() => {
     let lastSyncTrigger = 0;
 
     const handleVisibilityChange = () => {
       const now = Date.now();
-      if (now - lastSyncTrigger < 15000) return;
+      if (now - lastSyncTrigger < 3000) return;
       if (document.visibilityState === 'visible' && settingsRef.current.googleSheetsUrl && navigator.onLine) {
         lastSyncTrigger = now;
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
@@ -125,7 +143,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const handleFocus = () => {
       const now = Date.now();
-      if (now - lastSyncTrigger < 15000) return;
+      if (now - lastSyncTrigger < 3000) return;
       if (settingsRef.current.googleSheetsUrl && navigator.onLine) {
         lastSyncTrigger = now;
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
@@ -135,12 +153,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
 
-    // Periodic 2-way sync every 60 seconds in the background
+    // Periodic fast 2-way sync every 10 seconds in the background (Multi-device live sync)
     const interval = setInterval(() => {
-      if (settingsRef.current.autoSync && settingsRef.current.googleSheetsUrl && navigator.onLine) {
+      if (settingsRef.current.googleSheetsUrl && navigator.onLine) {
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
       }
-    }, 60000);
+    }, 10000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -158,20 +176,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Manual 2-way sync (called when user clicks ↻ Sync Now button in Navbar)
   const syncNow = async (): Promise<string> => {
-    if (isSyncingRef.current) {
-      return 'सिंक पहले से चल रहा है, कृपया प्रतीक्षा करें...';
-    }
     if (!settings.googleSheetsUrl) {
       return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
     }
-    isSyncingRef.current = true;
     setIsSyncing(true);
+    isSyncingRef.current = true;
     try {
-      const res = await syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
-      if (res.success) {
+      // If a background sync is already in flight, await it; otherwise start a fresh sync
+      const res = inFlightSyncRef.current
+        ? await inFlightSyncRef.current
+        : await syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
+      if (res && res.success) {
         await updateSettings({ lastSyncedAt: Date.now() });
       }
-      return res.message;
+      return (res && res.message) || '✅ सिंक पूर्ण!';
     } catch (e: any) {
       return e?.message || 'सिंक विफल रहा';
     } finally {
@@ -184,8 +202,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!settings.googleSheetsUrl) {
       return 'कृपया पहले सेटिंग्स में Google Sheets URL दर्ज करें';
     }
-    isSyncingRef.current = true;
     setIsSyncing(true);
+    isSyncingRef.current = true;
     try {
       const res = await syncFullDatabaseToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
       if (res.success) {
@@ -201,7 +219,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, isOnline, isSyncing, syncNow, syncFullNow }}>
+    <SettingsContext.Provider value={{ settings, updateSettings, isOnline, isSyncing, syncNow, syncFullNow, triggerSilentSync }}>
       {children}
     </SettingsContext.Provider>
   );
