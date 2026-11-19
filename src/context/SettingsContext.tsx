@@ -49,20 +49,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
-      // Ensure default Google Sheet document URL is set for Jyoti General Store
-      if (!effective.googleSheetDocumentUrl || effective.googleSheetDocumentUrl === 'https://sheets.google.com') {
+      // Ensure default Google Sheet document URL is set to the master sheet with gid=1348342111
+      if (!effective.googleSheetDocumentUrl || effective.googleSheetDocumentUrl.includes('sheets.google.com') || !effective.googleSheetDocumentUrl.includes('1348342111')) {
         effective.googleSheetDocumentUrl = DEFAULT_GOOGLE_SHEET_DOCUMENT_URL;
         await db.settings.put({ key: 'shop_settings', value: effective });
       }
 
-      // Clear out the obsolete / dead default Google Apps Script URL if present
-      if (effective.googleSheetsUrl && effective.googleSheetsUrl.includes('AKfycbxEBvSKonGm')) {
-        effective.googleSheetsUrl = '';
-        await db.settings.put({ key: 'shop_settings', value: effective });
-      }
-
-      // If DEFAULT_GOOGLE_SHEETS_URL is configured and user hasn't set one yet, adopt it
-      if (DEFAULT_GOOGLE_SHEETS_URL && !effective.googleSheetsUrl) {
+      // Ensure active Google Apps Script Web App URL is set
+      if (!effective.googleSheetsUrl || effective.googleSheetsUrl.includes('AKfycbxEBvSKonGm')) {
         effective.googleSheetsUrl = DEFAULT_GOOGLE_SHEETS_URL;
         await db.settings.put({ key: 'shop_settings', value: effective });
       }
@@ -118,14 +112,22 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Auto-sync on window focus or tab visibility change
   useEffect(() => {
+    let lastSyncTrigger = 0;
+
     const handleVisibilityChange = () => {
+      const now = Date.now();
+      if (now - lastSyncTrigger < 15000) return;
       if (document.visibilityState === 'visible' && settingsRef.current.googleSheetsUrl && navigator.onLine) {
+        lastSyncTrigger = now;
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
       }
     };
 
     const handleFocus = () => {
+      const now = Date.now();
+      if (now - lastSyncTrigger < 15000) return;
       if (settingsRef.current.googleSheetsUrl && navigator.onLine) {
+        lastSyncTrigger = now;
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
       }
     };
@@ -133,12 +135,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
 
-    // Periodic 2-way sync every 15 seconds between active devices
+    // Periodic 2-way sync every 60 seconds in the background
     const interval = setInterval(() => {
       if (settingsRef.current.autoSync && settingsRef.current.googleSheetsUrl && navigator.onLine) {
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
       }
-    }, 15000);
+    }, 60000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);

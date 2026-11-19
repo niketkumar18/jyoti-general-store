@@ -117,29 +117,16 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Sync Button & Status Indicator */}
             <button
-              onClick={() => {
-                if (!settings.googleSheetsUrl) {
-                  setActiveTab('settings');
-                  onSyncNotification('कृपया नीचे Google Sheet Web App URL जोड़ें (2-मिनट सेटअप देखें)');
-                  return;
-                }
-                handleManualSync();
-              }}
+              onClick={handleManualSync}
               disabled={isSyncing}
-              title={settings.googleSheetsUrl ? t('sync_now') : 'Google Sheets सिंक सेटअप करें'}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all cursor-pointer ${
-                !settings.googleSheetsUrl
-                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
-                  : 'bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-emerald-100 border-emerald-700'
-              } ${isSyncing ? 'opacity-80 cursor-wait' : ''}`}
+              title="Google Sheet से डेटा ताज़ा करें"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all cursor-pointer bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-emerald-100 border-emerald-700 ${
+                isSyncing ? 'opacity-80 cursor-wait' : ''
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${!settings.googleSheetsUrl ? 'text-amber-300' : 'text-emerald-300'} ${isSyncing ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-300 ${isSyncing ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">
-                {isSyncing
-                  ? 'सिंक हो रहा...'
-                  : !settings.googleSheetsUrl
-                  ? '⚠️ सिंक जोड़ें'
-                  : '🔄 सिंक करें'}
+                {isSyncing ? 'सिंक हो रहा...' : '🔄 ताज़ा करें'}
               </span>
             </button>
 

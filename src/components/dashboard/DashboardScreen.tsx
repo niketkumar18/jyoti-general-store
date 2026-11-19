@@ -239,10 +239,10 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. PROMO BANNER (e-Invoice & Multi-Device Sync)                           */}
+      {/* 2. PROMO BANNER (Google Sheet One Source of Truth)                         */}
       {/* ========================================================================= */}
       {showBanner && (
-        <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-3.5 sm:p-4 shadow-md relative overflow-hidden">
+        <div className="bg-gradient-to-r from-emerald-800 to-teal-900 text-white rounded-2xl p-3.5 sm:p-4 shadow-md relative overflow-hidden">
           <button
             onClick={() => setShowBanner(false)}
             className="absolute top-2 right-2 text-white/70 hover:text-white p-1 rounded-full text-xs"
@@ -251,24 +251,28 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           </button>
           <div className="pr-6 space-y-2">
             <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm">
-              <span className={`w-2.5 h-2.5 rounded-full ${settings.googleSheetsUrl ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
-              <span>
-                {settings.googleSheetsUrl
-                  ? '🟢 मोबाइल और लैपटॉप 2-तरफा ऑटो-सिंक सक्रिय है!'
-                  : '⚠️ मोबाइल ⇄ लैपटॉप सिंक: Google Sheet लिंक करें (2 मिनट)'}
-              </span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>🟢 Google Sheet डेटाबेस (One Source of Truth) सक्रिय है!</span>
             </div>
-            <p className="text-xs text-blue-100">
-              {settings.googleSheetsUrl
-                ? 'मोबाइल पर बना बिल तुरंत लैपटॉप पर दिखेगा और लैपटॉप पर बना बिल मोबाइल पर!'
-                : 'दोनों डिवाइस को आपस में जोड़ने के लिए अपनी Google Sheet का Apps Script लिंक दर्ज करें।'}
+            <p className="text-xs text-emerald-100">
+              लैपटॉप, मोबाइल या सीधे Google Sheet में सामान, ग्राहक या बिल अपडेट करें — सब जगह तुरंत लाइव दिखेगा।
             </p>
-            <button
-              onClick={() => onNavigate('settings')}
-              className="px-3 py-1 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-xs rounded-lg uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer"
-            >
-              <span>{settings.googleSheetsUrl ? 'QR कोड व सिंक सेटिंग्स देखें →' : '⚡ 2 मिनट में सिंक लिंक करें →'}</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <a
+                href={settings.googleSheetDocumentUrl || 'https://docs.google.com/spreadsheets/d/1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0/edit?gid=1348342111#gid=1348342111'}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3.5 py-1.5 bg-emerald-300 hover:bg-emerald-200 active:scale-95 text-emerald-950 font-black text-xs rounded-lg transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer"
+              >
+                <span>📊 Google Sheet खोलें ↗</span>
+              </a>
+              <button
+                onClick={() => onNavigate('settings')}
+                className="px-3 py-1.5 bg-white/15 hover:bg-white/25 active:scale-95 text-white font-bold text-xs rounded-lg transition-all inline-flex items-center gap-1 cursor-pointer"
+              >
+                <span>सेटिंग्स →</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
