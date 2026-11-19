@@ -747,6 +747,26 @@ export async function pullFromGoogleSheets(
             createdAt: cloudInv.createdAt || Date.now()
           });
           newInvoicesCount++;
+        } else if (exists && exists.id) {
+          // If invoice was directly edited in Google Sheet, reflect changes locally
+          if (
+            exists.paidAmount !== cloudInv.paidAmount ||
+            exists.dueAmount !== cloudInv.dueAmount ||
+            exists.grandTotal !== cloudInv.grandTotal ||
+            exists.discount !== cloudInv.discount ||
+            exists.customerName !== cloudInv.customerName
+          ) {
+            await db.invoices.update(exists.id, {
+              paidAmount: cloudInv.paidAmount,
+              dueAmount: cloudInv.dueAmount,
+              grandTotal: cloudInv.grandTotal,
+              discount: cloudInv.discount || 0,
+              subtotal: cloudInv.subtotal || cloudInv.grandTotal,
+              paymentMethod: cloudInv.paymentMethod || exists.paymentMethod,
+              customerName: cloudInv.customerName || exists.customerName,
+              customerMobile: cloudInv.customerMobile || exists.customerMobile
+            });
+          }
         }
       }
     }
@@ -786,22 +806,26 @@ export async function pullFromGoogleSheets(
     if (Array.isArray(data.customers) && data.customers.length > 0) {
       for (const cloudCust of data.customers) {
         if (!cloudCust.name) continue;
-        const existing = cloudCust.mobile && cloudCust.mobile !== '0000000000'
-          ? await db.customers.where('mobile').equals(cloudCust.mobile).first()
-          : await db.customers.where('name').equals(cloudCust.name).first();
+        const nameTrim = String(cloudCust.name).trim();
+        const mobileTrim = String(cloudCust.mobile || '').trim();
+        const existing = mobileTrim && mobileTrim !== '0000000000'
+          ? await db.customers.where('mobile').equals(mobileTrim).first()
+          : await db.customers.where('name').equals(nameTrim).first();
 
         if (existing && existing.id) {
           await db.customers.update(existing.id, {
-            currentBalance: cloudCust.currentBalance,
+            name: nameTrim || existing.name,
+            currentBalance: cloudCust.currentBalance !== undefined ? cloudCust.currentBalance : existing.currentBalance,
             creditLimit: cloudCust.creditLimit || existing.creditLimit,
             riskLevel: cloudCust.riskLevel || existing.riskLevel,
+            address: cloudCust.address || existing.address,
             updatedAt: Date.now()
           });
           updatedCustomersCount++;
         } else if (!existing) {
           await db.customers.add({
-            name: cloudCust.name,
-            mobile: cloudCust.mobile || '0000000000',
+            name: nameTrim,
+            mobile: mobileTrim || '0000000000',
             address: cloudCust.address || '',
             creditLimit: cloudCust.creditLimit || 2000,
             currentBalance: cloudCust.currentBalance || 0,
@@ -816,21 +840,41 @@ export async function pullFromGoogleSheets(
 
     // D. Sync Inventory Items & Stock from Cloud
     if (Array.isArray(data.items) && data.items.length > 0) {
+      const allLocalItems = await db.items.toArray();
       for (const cloudItem of data.items) {
         if (!cloudItem.nameHi && !cloudItem.nameEn) continue;
-        const existing = cloudItem.barcode
-          ? await db.items.where('barcode').equals(cloudItem.barcode).first()
-          : (cloudItem.nameHi ? await db.items.where('nameHi').equals(cloudItem.nameHi).first() : null) ||
-            (cloudItem.nameEn ? await db.items.where('nameEn').equals(cloudItem.nameEn).first() : null);
+        const nameHiTrim = String(cloudItem.nameHi || '').trim();
+        const nameEnTrim = String(cloudItem.nameEn || '').trim();
+        const barcodeTrim = String(cloudItem.barcode || '').trim();
+
+        let existing = barcodeTrim
+          ? await db.items.where('barcode').equals(barcodeTrim).first()
+          : null;
+
+        if (!existing && nameHiTrim) {
+          existing = await db.items.where('nameHi').equals(nameHiTrim).first();
+        }
+        if (!existing && nameEnTrim) {
+          existing = await db.items.where('nameEn').equals(nameEnTrim).first();
+        }
+        if (!existing && (nameHiTrim || nameEnTrim)) {
+          existing = allLocalItems.find(it =>
+            (nameHiTrim && (it.nameHi?.trim().toLowerCase() === nameHiTrim.toLowerCase() || it.nameEn?.trim().toLowerCase() === nameHiTrim.toLowerCase())) ||
+            (nameEnTrim && (it.nameEn?.trim().toLowerCase() === nameEnTrim.toLowerCase() || it.nameHi?.trim().toLowerCase() === nameEnTrim.toLowerCase()))
+          );
+        }
 
         if (existing && existing.id) {
           await db.items.update(existing.id, {
-            salePrice: cloudItem.salePrice ?? existing.salePrice,
-            costPrice: cloudItem.costPrice ?? existing.costPrice,
-            stockQty: cloudItem.stockQty ?? existing.stockQty,
+            nameHi: nameHiTrim || existing.nameHi,
+            nameEn: nameEnTrim || existing.nameEn,
+            salePrice: cloudItem.salePrice !== undefined ? cloudItem.salePrice : existing.salePrice,
+            costPrice: cloudItem.costPrice !== undefined ? cloudItem.costPrice : existing.costPrice,
+            stockQty: cloudItem.stockQty !== undefined ? cloudItem.stockQty : existing.stockQty,
             unit: cloudItem.unit || existing.unit,
             category: cloudItem.category || existing.category,
             lowStockThreshold: cloudItem.lowStockThreshold || existing.lowStockThreshold,
+            barcode: barcodeTrim || existing.barcode,
             bulkDiscountThreshold: cloudItem.bulkDiscountThreshold ?? existing.bulkDiscountThreshold,
             bulkDiscountRate: cloudItem.bulkDiscountRate ?? existing.bulkDiscountRate,
             isComplementary: cloudItem.isComplementary ?? existing.isComplementary,
@@ -839,15 +883,15 @@ export async function pullFromGoogleSheets(
           updatedItemsCount++;
         } else {
           await db.items.add({
-            nameHi: cloudItem.nameHi || cloudItem.nameEn,
-            nameEn: cloudItem.nameEn || cloudItem.nameHi,
+            nameHi: nameHiTrim || nameEnTrim,
+            nameEn: nameEnTrim || nameHiTrim,
             category: cloudItem.category || 'other',
             unit: cloudItem.unit || 'PIECE',
             salePrice: cloudItem.salePrice || 0,
             costPrice: cloudItem.costPrice || 0,
             stockQty: cloudItem.stockQty || 0,
             lowStockThreshold: cloudItem.lowStockThreshold || 5,
-            barcode: cloudItem.barcode || '',
+            barcode: barcodeTrim,
             bulkDiscountThreshold: cloudItem.bulkDiscountThreshold,
             bulkDiscountRate: cloudItem.bulkDiscountRate,
             isComplementary: Boolean(cloudItem.isComplementary),
@@ -863,15 +907,18 @@ export async function pullFromGoogleSheets(
     if (Array.isArray(data.vendors) && data.vendors.length > 0) {
       for (const cloudV of data.vendors) {
         if (!cloudV.name) continue;
-        const existing = cloudV.mobile && cloudV.mobile !== '0000000000'
-          ? await db.vendors.where('mobile').equals(cloudV.mobile).first()
-          : await db.vendors.where('name').equals(cloudV.name).first();
+        const nameTrim = String(cloudV.name).trim();
+        const mobileTrim = String(cloudV.mobile || '').trim();
+        const existing = mobileTrim && mobileTrim !== '0000000000'
+          ? await db.vendors.where('mobile').equals(mobileTrim).first()
+          : await db.vendors.where('name').equals(nameTrim).first();
 
         if (existing && existing.id) {
           await db.vendors.update(existing.id, {
-            currentBalance: cloudV.currentBalance ?? existing.currentBalance,
-            totalPurchased: cloudV.totalPurchased ?? existing.totalPurchased,
-            totalPaid: cloudV.totalPaid ?? existing.totalPaid,
+            name: nameTrim || existing.name,
+            currentBalance: cloudV.currentBalance !== undefined ? cloudV.currentBalance : existing.currentBalance,
+            totalPurchased: cloudV.totalPurchased !== undefined ? cloudV.totalPurchased : existing.totalPurchased,
+            totalPaid: cloudV.totalPaid !== undefined ? cloudV.totalPaid : existing.totalPaid,
             firmName: cloudV.firmName || existing.firmName,
             category: cloudV.category || existing.category,
             address: cloudV.address || existing.address,
@@ -880,9 +927,9 @@ export async function pullFromGoogleSheets(
           updatedVendorsCount++;
         } else if (!existing) {
           await db.vendors.add({
-            name: cloudV.name,
+            name: nameTrim,
             firmName: cloudV.firmName || '',
-            mobile: cloudV.mobile || '',
+            mobile: mobileTrim || '',
             address: cloudV.address || '',
             category: cloudV.category || 'general',
             currentBalance: cloudV.currentBalance || 0,
