@@ -26,8 +26,9 @@ export interface TwoWaySyncResult {
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * DEN Kirana POS - 100% Free Google Sheets Cloud Database (2-Way Multi-Device Sync)
  * 
- * Instructions (2-Minute Setup):
- * 1. Open Google Sheets (create new: sheets.new)
+ * Instructions for Jyoti General Store (2-Minute Setup):
+ * 1. Open your master Google Sheet:
+ *    https://docs.google.com/spreadsheets/d/1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0/edit
  * 2. Extensions (एक्सटेंशन) > Apps Script
  * 3. Delete existing code and paste this entire code
  * 4. Click Save (💾)
@@ -48,6 +49,9 @@ function doGet(e) {
   }
   if (!ss) {
     try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
+  }
+  if (!ss) {
+    try { ss = SpreadsheetApp.openById('1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0'); } catch(err) {}
   }
 
   // ==========================================================
@@ -261,6 +265,9 @@ function doPost(e) {
       try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch(err) {}
     }
     if (!ss) {
+      try { ss = SpreadsheetApp.openById('1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0'); } catch(err) {}
+    }
+    if (!ss) {
       return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
         error: 'Spreadsheet not found'
@@ -427,6 +434,9 @@ function doPost(e) {
  */
 function setupAllTabsNow() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    try { ss = SpreadsheetApp.openById('1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0'); } catch(err) {}
+  }
   if (!ss) return;
 
   try {

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ShopSettings } from '../types';
-import { initialSettings, initializeDatabaseIfEmpty, DEFAULT_GOOGLE_SHEETS_URL } from '../db/seedData';
+import { initialSettings, initializeDatabaseIfEmpty, DEFAULT_GOOGLE_SHEETS_URL, DEFAULT_GOOGLE_SHEET_DOCUMENT_URL } from '../db/seedData';
 import { db } from '../db';
 import { syncTwoWay, syncPendingToGoogleSheets, syncFullDatabaseToGoogleSheets } from '../utils/googleSheetsSync';
 
@@ -49,9 +49,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
+      // Ensure default Google Sheet document URL is set for Jyoti General Store
+      if (!effective.googleSheetDocumentUrl || effective.googleSheetDocumentUrl === 'https://sheets.google.com') {
+        effective.googleSheetDocumentUrl = DEFAULT_GOOGLE_SHEET_DOCUMENT_URL;
+        await db.settings.put({ key: 'shop_settings', value: effective });
+      }
+
       // Clear out the obsolete / dead default Google Apps Script URL if present
       if (effective.googleSheetsUrl && effective.googleSheetsUrl.includes('AKfycbxEBvSKonGm')) {
         effective.googleSheetsUrl = '';
+        await db.settings.put({ key: 'shop_settings', value: effective });
+      }
+
+      // If DEFAULT_GOOGLE_SHEETS_URL is configured and user hasn't set one yet, adopt it
+      if (DEFAULT_GOOGLE_SHEETS_URL && !effective.googleSheetsUrl) {
+        effective.googleSheetsUrl = DEFAULT_GOOGLE_SHEETS_URL;
         await db.settings.put({ key: 'shop_settings', value: effective });
       }
 

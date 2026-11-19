@@ -435,9 +435,16 @@ export const SettingsScreen: React.FC = () => {
 
           {/* Direct Sheet Document Link Input */}
           <div className="space-y-1.5 pt-2 border-t border-emerald-200/60">
-            <label className="block text-xs font-bold text-emerald-950 flex items-center justify-between">
-              <span>आपकी Google Sheet का सीधा लिंक (Spreadsheet URL):</span>
-              <span className="text-[10px] text-slate-500 font-normal hidden sm:inline">उदा. https://docs.google.com/spreadsheets/d/.../edit</span>
+            <label className="block text-xs font-bold text-emerald-950 flex flex-wrap items-center justify-between gap-1">
+              <span className="flex items-center gap-1.5">
+                <span>आपकी Google Sheet का सीधा लिंक (Master Spreadsheet):</span>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                  ✨ डिफ़ॉल्ट मास्टर शीट
+                </span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-normal hidden sm:inline">
+                ज्योति जनरल स्टोर Google Sheet
+              </span>
             </label>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
@@ -455,7 +462,7 @@ export const SettingsScreen: React.FC = () => {
                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow flex items-center justify-center gap-1.5 transition-all whitespace-nowrap"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>अपनी शीट सीधे खोलें</span>
+                  <span>अपनी शीट सीधे खोलें ↗</span>
                 </a>
               ) : (
                 <a
@@ -469,8 +476,8 @@ export const SettingsScreen: React.FC = () => {
                 </a>
               )}
             </div>
-            <p className="text-[11px] text-slate-500">
-              अपनी स्प्रेडशीट का URL यहाँ पेस्ट करने से "अपनी शीट सीधे खोलें" बटन हमेशा सीधे आपकी फ़ाइल खोलेगा (होम पेज नहीं)।
+            <p className="text-[11px] text-emerald-800 bg-emerald-50/80 p-2 rounded-lg border border-emerald-200 leading-relaxed">
+              ✅ <strong>डिफ़ॉल्ट मास्टर डेटाबेस:</strong> यह Google Sheet आपकी दुकान का केंद्रीय डेटाबेस है। इस शीट के अंदर <strong>Extensions &gt; Apps Script</strong> में जाकर Web App डिप्लॉय करें और मिला हुआ URL नीचे Webhook बॉक्स में डालें ताकि मोबाइल और लैपटॉप दोनों इसी शीट से स्वतः सिंक रहें।
             </p>
           </div>
 
@@ -760,14 +767,14 @@ export const SettingsScreen: React.FC = () => {
 
               <ol className="list-decimal pl-5 space-y-2">
                 <li>
-                  अपने Google खाते में नई शीट बनाएं:{' '}
+                  अपनी ज्योति जनरल स्टोर मास्टर Google Sheet खोलें:{' '}
                   <a
-                    href="https://sheets.new"
+                    href={formData.googleSheetDocumentUrl || 'https://docs.google.com/spreadsheets/d/1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0/edit'}
                     target="_blank"
                     rel="noreferrer"
                     className="text-emerald-700 font-bold underline"
                   >
-                    sheets.new खोलें
+                    मास्टर Google Sheet खोलें ↗
                   </a>
                 </li>
                 <li>
@@ -796,8 +803,8 @@ export const SettingsScreen: React.FC = () => {
               </div>
 
               <ol start={4} className="list-decimal pl-5 space-y-2">
-                <li className="bg-amber-50 p-2 rounded-lg border border-amber-200">
-                  <strong className="text-amber-900">⚡ तुरंत टेस्ट करें (बिना डिप्लॉय किए):</strong> ऊपर फ़ंक्शन ड्रॉपडाउन में <strong>testSyncDirectly</strong> चुनें और <strong>Run (▶️)</strong> दबाएँ। अपनी Google Sheet देखें — तुरंत 4 टैब में सारा डेटा दिख जाएगा!
+                <li className="bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                  <strong className="text-amber-900">⚡ तुरंत सभी 6 टैब्स बनाएं (One-Click Setup):</strong> ऊपर फ़ंक्शन ड्रॉपडाउन में <strong>setupAllTabsNow</strong> चुनें और <strong>Run (▶️)</strong> दबाएँ। अपनी Google Sheet देखें — तुरंत 6 टैब में सारा डेटा दिख जाएगा!
                 </li>
                 <li>ऊपर नीले <strong>Deploy</strong> बटन पर क्लिक कर <strong>New deployment</strong> चुनें।</li>
                 <li>Gear (⚙️) आइकन पर क्लिक करके <strong>Web app</strong> चुनें।</li>
@@ -812,20 +819,26 @@ export const SettingsScreen: React.FC = () => {
                   <span>Google Sheet में क्या-क्या बनेगा और डेटा कैसे दिखेगा?</span>
                 </h4>
                 <p className="text-[11px] text-slate-600">
-                  आपको Google Sheet में कोई कॉलम या फॉर्मेट बनाने की जरूरत नहीं है। यह स्क्रिप्ट अपने-आप 4 टैब बनाएगी:
+                  आपको Google Sheet में कोई कॉलम या फॉर्मेट बनाने की जरूरत नहीं है। यह स्क्रिप्ट अपने-आप 6 टैब बनाएगी:
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                   <div className="bg-white p-2 rounded border border-slate-200">
-                    <strong className="text-emerald-800">1. Invoices टैब:</strong> बिल सं., ग्राहक, कुल देय, जमा राशि, उधारी, और सामानों की सूची
+                    <strong className="text-emerald-800">1. Invoices टैब:</strong> बिल सं., ग्राहक, उप-योग, छूट, कुल राशि, जमा, उधारी और सामान
                   </div>
                   <div className="bg-white p-2 rounded border border-slate-200">
-                    <strong className="text-amber-800">2. Ledger टैब:</strong> तारीख अनुसार ग्राहक खाता, उधारी (Debit) और नकद/UPI जमा (Credit)
+                    <strong className="text-amber-800">2. Ledger टैब:</strong> तारीख अनुसार ग्राहक उधारी (Debit) और नकद/UPI जमा (Credit)
                   </div>
                   <div className="bg-white p-2 rounded border border-slate-200">
                     <strong className="text-green-800">3. Customers टैब:</strong> ग्राहकों के नाम, फोन, उधारी सीमा, और कुल शेष बकाया
                   </div>
                   <div className="bg-white p-2 rounded border border-slate-200">
-                    <strong className="text-blue-800">4. Inventory टैब:</strong> दुकान का सारा सामान, खरीद/बिक्री रेट, और बचा हुआ स्टॉक
+                    <strong className="text-blue-800">4. Inventory टैब:</strong> दुकान का सारा सामान, खरीद/बिक्री दर, बारकोड, और मौजूदा स्टॉक
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-purple-800">5. Vendors टैब:</strong> सप्लायर नाम, फर्म, फोन, श्रेणी, कुल खरीद, भुगतान और बाकी
+                  </div>
+                  <div className="bg-white p-2 rounded border border-slate-200">
+                    <strong className="text-teal-800">6. VendorLedger टैब:</strong> महाजन खरीद इनवर्ड बिल और भुगतान बहीखाता
                   </div>
                 </div>
               </div>

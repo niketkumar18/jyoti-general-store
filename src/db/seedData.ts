@@ -2,6 +2,7 @@ import { db } from './index';
 import type { InventoryItem, Customer, ShopSettings, Vendor, VendorLedgerEntry } from '../types';
 
 export const DEFAULT_GOOGLE_SHEETS_URL = '';
+export const DEFAULT_GOOGLE_SHEET_DOCUMENT_URL = 'https://docs.google.com/spreadsheets/d/1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0/edit';
 
 export const initialSettings: ShopSettings = {
   shopName: 'M/S JYOTI GENERAL STORE',
@@ -19,7 +20,8 @@ export const initialSettings: ShopSettings = {
   thermalPaperWidth: '80mm',
   enableSound: true,
   autoSync: true,
-  googleSheetsUrl: ''
+  googleSheetsUrl: DEFAULT_GOOGLE_SHEETS_URL,
+  googleSheetDocumentUrl: DEFAULT_GOOGLE_SHEET_DOCUMENT_URL
 };
 
 export const sampleItems: Omit<InventoryItem, 'id'>[] = [
