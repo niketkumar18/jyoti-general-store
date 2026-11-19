@@ -363,6 +363,7 @@ export const PosScreen: React.FC = () => {
         discount={discount}
         grandTotal={grandTotal}
         customer={selectedCustomer}
+        onSetDiscount={setDiscount}
         onUpdatePrice={handleUpdatePrice}
         onUpdateQuantity={handleUpdateQuantity}
         onToggleComplementary={handleToggleComplementary}

@@ -38,6 +38,15 @@ const AppContent: React.FC = () => {
 
   // Sync state with window.location.hash so direct paths like /#vendors work
   useEffect(() => {
+    // Check if paired via QR code / syncUrl
+    try {
+      if (typeof window !== 'undefined' && window.location.search.includes('syncUrl')) {
+        showToast('🎉 मोबाइल लैपटॉप से लिंक हो गया! सारा डेटा लाइव लोड हो रहा है...');
+      }
+    } catch (e) {
+      // ignore
+    }
+
     const onHashChange = () => {
       const tab = getTabFromHash();
       setActiveTabState(tab);

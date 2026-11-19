@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { Invoice, Customer, InventoryItem, LedgerEntry } from '../types';
+import type { Invoice, Customer, InventoryItem, LedgerEntry, Vendor, VendorLedgerEntry, ShopSettings } from '../types';
 
 export interface SyncResult {
   success: boolean;
@@ -7,6 +7,7 @@ export interface SyncResult {
   syncedLedgers: number;
   syncedCustomers?: number;
   syncedItems?: number;
+  syncedVendors?: number;
   message: string;
 }
 
@@ -17,21 +18,26 @@ export interface TwoWaySyncResult {
   pulledInvoices: number;
   pulledLedgers: number;
   updatedCustomers: number;
+  updatedItems?: number;
+  updatedVendors?: number;
   message: string;
 }
 
 export const GOOGLE_APPS_SCRIPT_TEMPLATE = `/**
  * DEN Kirana POS - 100% Free Google Sheets Cloud Database (2-Way Multi-Device Sync)
  * 
- * Instructions:
- * 1. Open your Google Sheet
- * 2. Go to Extensions (एक्सटेंशन) > Apps Script
- * 3. Delete everything and paste this code completely
+ * Instructions (2-Minute Setup):
+ * 1. Open Google Sheets (create new: sheets.new)
+ * 2. Extensions (एक्सटेंशन) > Apps Script
+ * 3. Delete existing code and paste this entire code
  * 4. Click Save (💾)
  * 5. (⚡ ONE-CLICK TEST): Select "setupAllTabsNow" from top dropdown and click Run (▶️)
- *    -> Check your Google Sheet! All 5 tabs will appear immediately!
- * 6. Click Deploy > Manage deployments > Edit (pencil) > Version: "New version" > Deploy
- * 7. Copy the Web App URL (ends with /exec) into DEN Settings!
+ *    -> Check your Google Sheet! All 6 tabs will appear immediately!
+ * 6. Click Deploy > New deployment (or Manage deployments > New version)
+ *    -> Select type: "Web app"
+ *    -> Execute as: "Me"
+ *    -> Who has access: "Anyone" (VERY IMPORTANT)
+ * 7. Copy the Web App URL (ends with /exec) into DEN Settings on Laptop & Mobile!
  */
 
 function doGet(e) {
@@ -57,12 +63,12 @@ function doGet(e) {
     var invoices = [];
     var sheetInv = ss.getSheetByName('Invoices');
     if (sheetInv && sheetInv.getLastRow() > 1) {
-      var numCols = Math.max(9, sheetInv.getLastColumn());
-      var dataInv = sheetInv.getRange(2, 1, sheetInv.getLastRow() - 1, numCols).getValues();
+      var numColsInv = Math.max(12, sheetInv.getLastColumn());
+      var dataInv = sheetInv.getRange(2, 1, sheetInv.getLastRow() - 1, numColsInv).getValues();
       for (var i = 0; i < dataInv.length; i++) {
         var r = dataInv[i];
         if (r[1]) { // invoiceNumber
-          var rawItemsJson = (numCols >= 10 && r[9]) ? String(r[9]) : '';
+          var rawItemsJson = (numColsInv >= 12 && r[11]) ? String(r[11]) : (numColsInv >= 10 ? String(r[9]) : '');
           var parsedItems = [];
           if (rawItemsJson && rawItemsJson.charAt(0) === '[') {
             try { parsedItems = JSON.parse(rawItemsJson); } catch(errP) {}
@@ -72,18 +78,20 @@ function doGet(e) {
             invoiceNumber: String(r[1]),
             customerName: String(r[2] || 'नकद ग्राहक'),
             customerMobile: String(r[3] || ''),
-            grandTotal: Number(r[4]) || 0,
-            paidAmount: Number(r[5]) || 0,
-            dueAmount: Number(r[6]) || 0,
-            paymentMethod: String(r[7] || 'CASH'),
-            itemsSummary: String(r[8] || ''),
+            subtotal: Number(r[4]) || Number(r[6]) || 0,
+            discount: Number(r[5]) || 0,
+            grandTotal: Number(r[6]) || Number(r[4]) || 0,
+            paidAmount: Number(r[7]) || Number(r[5]) || 0,
+            dueAmount: Number(r[8]) || Number(r[6]) || 0,
+            paymentMethod: String(r[9] || r[7] || 'CASH'),
+            itemsSummary: String(r[10] || r[8] || ''),
             items: parsedItems
           });
         }
       }
     }
 
-    // 2. Read Ledger
+    // 2. Read Customer Ledger
     var ledgers = [];
     var sheetLed = ss.getSheetByName('Ledger');
     if (sheetLed && sheetLed.getLastRow() > 1) {
@@ -130,11 +138,12 @@ function doGet(e) {
       }
     }
 
-    // 4. Read Inventory
+    // 4. Read Inventory (Items & Stock)
     var items = [];
     var sheetItems = ss.getSheetByName('Inventory');
     if (sheetItems && sheetItems.getLastRow() > 1) {
-      var dataItems = sheetItems.getRange(2, 1, sheetItems.getLastRow() - 1, 9).getValues();
+      var numColsI = Math.max(12, sheetItems.getLastColumn());
+      var dataItems = sheetItems.getRange(2, 1, sheetItems.getLastRow() - 1, numColsI).getValues();
       for (var m = 0; m < dataItems.length; m++) {
         var rI = dataItems[m];
         if (rI[0] || rI[1]) {
@@ -147,7 +156,55 @@ function doGet(e) {
             costPrice: Number(rI[5]) || 0,
             stockQty: Number(rI[6]) || 0,
             lowStockThreshold: Number(rI[7]) || 5,
-            barcode: String(rI[8] || '')
+            barcode: String(rI[8] || ''),
+            bulkDiscountThreshold: Number(rI[9]) || undefined,
+            bulkDiscountRate: Number(rI[10]) || undefined,
+            isComplementary: Boolean(rI[11] === 'हां' || rI[11] === true || rI[11] === 'YES')
+          });
+        }
+      }
+    }
+
+    // 5. Read Vendors (Suppliers)
+    var vendors = [];
+    var sheetVendors = ss.getSheetByName('Vendors');
+    if (sheetVendors && sheetVendors.getLastRow() > 1) {
+      var dataV = sheetVendors.getRange(2, 1, sheetVendors.getLastRow() - 1, 8).getValues();
+      for (var v = 0; v < dataV.length; v++) {
+        var rV = dataV[v];
+        if (rV[0]) {
+          vendors.push({
+            name: String(rV[0]),
+            firmName: String(rV[1] || ''),
+            mobile: String(rV[2] || ''),
+            category: String(rV[3] || ''),
+            currentBalance: Number(rV[4]) || 0,
+            totalPurchased: Number(rV[5]) || 0,
+            totalPaid: Number(rV[6]) || 0,
+            address: String(rV[7] || '')
+          });
+        }
+      }
+    }
+
+    // 6. Read VendorLedger
+    var vendorLedgers = [];
+    var sheetVL = ss.getSheetByName('VendorLedger');
+    if (sheetVL && sheetVL.getLastRow() > 1) {
+      var dataVL = sheetVL.getRange(2, 1, sheetVL.getLastRow() - 1, 9).getValues();
+      for (var vl = 0; vl < dataVL.length; vl++) {
+        var rVL = dataVL[vl];
+        if (rVL[1]) {
+          vendorLedgers.push({
+            createdAt: rVL[0] ? new Date(rVL[0]).getTime() : Date.now(),
+            vendorName: String(rVL[1]),
+            type: String(rVL[2]).indexOf('खरीद') > -1 ? 'PURCHASE' : 'PAYMENT',
+            amount: Number(rVL[3]) || 0,
+            paidAmount: Number(rVL[4]) || 0,
+            dueAmount: Number(rVL[5]) || 0,
+            billNumber: String(rVL[6] || ''),
+            description: String(rVL[7] || ''),
+            runningBalance: Number(rVL[8]) || 0
           });
         }
       }
@@ -159,6 +216,8 @@ function doGet(e) {
       ledgers: ledgers,
       customers: customers,
       items: items,
+      vendors: vendors,
+      vendorLedgers: vendorLedgers,
       timestamp: Date.now()
     })).setMimeType(ContentService.MimeType.JSON);
   }
@@ -209,10 +268,12 @@ function doPost(e) {
     }
 
     // 1. GUARANTEE ALL TABS EXIST
-    var sheetInvoices = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण', 'सामान डेटा (JSON)']);
+    var sheetInvoices = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'उप-योग (₹)', 'छूट (₹)', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण', 'सामान डेटा (JSON)']);
     var sheetLedger = getOrCreateSheet(ss, 'Ledger', ['तारीख व समय', 'ग्राहक का नाम', 'प्रकार (उधार/जमा)', 'राशि (₹)', 'माध्यम', 'बिल सं.', 'विवरण', 'शेष उधारी (₹)']);
     var sheetCust = getOrCreateSheet(ss, 'Customers', ['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
-    var sheetItems = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
+    var sheetItems = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड', 'थोक सीमा', 'थोक दर (₹)', 'उपहार (मुफ्त)']);
+    var sheetVendors = getOrCreateSheet(ss, 'Vendors', ['सप्लायर का नाम', 'फर्म / एजेंसी का नाम', 'मोबाइल नंबर', 'श्रेणी', 'बकाया देना (₹)', 'कुल खरीद (₹)', 'कुल भुगतान (₹)', 'पता / विवरण']);
+    var sheetVL = getOrCreateSheet(ss, 'VendorLedger', ['तारीख व समय', 'सप्लायर का नाम', 'लेनदेन प्रकार', 'कुल राशि (₹)', 'भुगतान (₹)', 'बाकी (₹)', 'बिल सं.', 'सामान विवरण', 'शेष बकाया (₹)']);
 
     // 2. DASHBOARD / HOME TAB
     try {
@@ -222,13 +283,15 @@ function doPost(e) {
         homeSheet.clear();
         homeSheet.appendRow(['🏪 DEN किराना POS एवं डिजिटल खाता बही (2-Way Live Sync Active)']);
         homeSheet.appendRow(['']);
-        homeSheet.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 4 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
-        homeSheet.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल और नकद/उधार राशि']);
+        homeSheet.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 6 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
+        homeSheet.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल, छूट, नकद व उधार राशि']);
         homeSheet.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब']);
         homeSheet.appendRow(['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया']);
         homeSheet.appendRow(['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक']);
+        homeSheet.appendRow(['5. 🏭 Vendors टैब:', 'थोक सप्लायर, डीलर, फर्म नाम और उनका बकाया हिसाब']);
+        homeSheet.appendRow(['6. 🚚 VendorLedger टैब:', 'सप्लायर खरीद इनवर्ड बिल व भुगतान बहीखाता']);
         homeSheet.appendRow(['']);
-        homeSheet.appendRow(['👉 मोबाइल और लैपटॉप दोनों डिवाइस इसी गूगल शीट से रियल-टाइम में जुड़े हैं।']);
+        homeSheet.appendRow(['👉 मोबाइल, लैपटॉप या टैबलेट — सभी डिवाइस इसी गूगल शीट से 100% सिंक रहते हैं।']);
         homeSheet.appendRow(['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
       }
     } catch(errH) {}
@@ -245,6 +308,8 @@ function doPost(e) {
           inv.invoiceNumber,
           inv.customerName || 'नकद ग्राहक',
           inv.customerMobile || '',
+          inv.subtotal || inv.grandTotal,
+          inv.discount || 0,
           inv.grandTotal,
           inv.paidAmount,
           inv.dueAmount,
@@ -271,7 +336,7 @@ function doPost(e) {
       });
     }
 
-    // 5. WRITE CUSTOMERS
+    // 5. WRITE CUSTOMERS (Full overwrite or update)
     if (payload.customers && payload.customers.length > 0) {
       sheetCust.clear();
       sheetCust.appendRow(['ग्राहक का नाम', 'मोबाइल नंबर', 'उधारी सीमा (₹)', 'वर्तमान बकाया (₹)', 'जोखिम स्थिति', 'पता / विवरण']);
@@ -287,10 +352,10 @@ function doPost(e) {
       });
     }
 
-    // 6. WRITE INVENTORY
+    // 6. WRITE INVENTORY (Full overwrite or update)
     if (payload.items && payload.items.length > 0) {
       sheetItems.clear();
-      sheetItems.appendRow(['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
+      sheetItems.appendRow(['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड', 'थोक सीमा', 'थोक दर (₹)', 'उपहार (मुफ्त)']);
       payload.items.forEach(function(it) {
         sheetItems.appendRow([
           it.nameHi,
@@ -301,14 +366,52 @@ function doPost(e) {
           it.costPrice || '',
           it.stockQty,
           it.lowStockThreshold,
-          it.barcode || ''
+          it.barcode || '',
+          it.bulkDiscountThreshold || '',
+          it.bulkDiscountRate || '',
+          it.isComplementary ? 'हां' : 'नहीं'
+        ]);
+      });
+    }
+
+    // 7. WRITE VENDORS
+    if (payload.vendors && payload.vendors.length > 0) {
+      sheetVendors.clear();
+      sheetVendors.appendRow(['सप्लायर का नाम', 'फर्म / एजेंसी का नाम', 'मोबाइल नंबर', 'श्रेणी', 'बकाया देना (₹)', 'कुल खरीद (₹)', 'कुल भुगतान (₹)', 'पता / विवरण']);
+      payload.vendors.forEach(function(v) {
+        sheetVendors.appendRow([
+          v.name,
+          v.firmName || '',
+          v.mobile || '',
+          v.category || '',
+          v.currentBalance || 0,
+          v.totalPurchased || 0,
+          v.totalPaid || 0,
+          v.address || v.notes || ''
+        ]);
+      });
+    }
+
+    // 8. WRITE VENDOR LEDGER
+    if (payload.vendorLedgers && payload.vendorLedgers.length > 0) {
+      payload.vendorLedgers.forEach(function(vl) {
+        sheetVL.appendRow([
+          new Date(vl.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          vl.vendorName,
+          vl.type === 'PURCHASE' ? 'माल खरीदा (PURCHASE)' : 'रुपये चुकाए (PAYMENT)',
+          vl.amount,
+          vl.paidAmount || 0,
+          vl.dueAmount || 0,
+          vl.billNumber || '',
+          vl.description || '',
+          vl.runningBalance || 0
         ]);
       });
     }
 
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
-      message: 'All 4 tabs synced successfully!'
+      message: 'All 6 tabs synced successfully!'
     })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
@@ -328,22 +431,22 @@ function setupAllTabsNow() {
 
   try {
     if (ss.getName() === 'Untitled spreadsheet' || ss.getName() === 'बिना शीर्षक वाली स्प्रेडशीट') {
-      ss.setName('DEN किराना स्टोर बहीखाता (DEN Kirana Ledger)');
+      ss.setName('DEN किराना स्टोर बहीखाता (DEN Kirana Cloud Ledger)');
     }
   } catch(e) {}
 
   // 1. Invoices tab
-  var inv = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण', 'सामान डेटा (JSON)']);
+  var inv = getOrCreateSheet(ss, 'Invoices', ['तारीख व समय', 'बिल संख्या', 'ग्राहक का नाम', 'मोबाइल', 'उप-योग (₹)', 'छूट (₹)', 'कुल राशि (₹)', 'जमा राशि (₹)', 'उधार (₹)', 'भुगतान माध्यम', 'सामान विवरण', 'सामान डेटा (JSON)']);
   if (inv.getLastRow() <= 1) {
-    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'DEN-1001', 'रमेश कुमार (वर्मा जी)', '9826011223', 1250, 500, 750, 'SPLIT', 'अरहर दाल (1 KG @ ₹160), फॉर्च्यून तेल (1 LTR @ ₹155)', '[]']);
-    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'DEN-1002', 'सोनू शर्मा (पंडित जी)', '9893044556', 2150, 0, 2150, 'CREDIT', 'अमुल शुद्ध घी (1 LTR @ ₹650), आटा 10KG (1 PKT @ ₹420)', '[]']);
+    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'MJ/SL/671', 'रमेश कुमार (वर्मा जी)', '9826011223', 1250, 0, 1250, 500, 750, 'SPLIT', 'अरहर दाल (1 KG @ ₹160), फॉर्च्यून तेल (1 LTR @ ₹155)', '[]']);
+    inv.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'MJ/SL/672', 'सोनू शर्मा (पंडित जी)', '9893044556', 2200, 50, 2150, 0, 2150, 'CREDIT', 'अमुल शुद्ध घी (1 LTR @ ₹650), आटा 10KG (1 PKT @ ₹420)', '[]']);
   }
 
   // 2. Ledger tab
   var led = getOrCreateSheet(ss, 'Ledger', ['तारीख व समय', 'ग्राहक का नाम', 'प्रकार (उधार/जमा)', 'राशि (₹)', 'माध्यम', 'बिल सं.', 'विवरण', 'शेष उधारी (₹)']);
   if (led.getLastRow() <= 1) {
-    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'रमेश कुमार (वर्मा जी)', 'उधार (DEBIT)', 750, 'BILL', 'DEN-1001', 'बिल #DEN-1001 का उधार', 750]);
-    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'सोनू शर्मा (पंडित जी)', 'उधार (DEBIT)', 2150, 'BILL', 'DEN-1002', 'राशन का उधार', 2150]);
+    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'रमेश कुमार (वर्मा जी)', 'उधार (DEBIT)', 750, 'BILL', 'MJ/SL/671', 'बिल #MJ/SL/671 का उधार', 750]);
+    led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'सोनू शर्मा (पंडित जी)', 'उधार (DEBIT)', 2150, 'BILL', 'MJ/SL/672', 'राशन का उधार', 2150]);
     led.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'सोनू शर्मा (पंडित जी)', 'जमा (CREDIT)', 500, 'CASH', '', 'दुकान पर नकद जमा किया', 1650]);
   }
 
@@ -357,32 +460,47 @@ function setupAllTabsNow() {
   }
 
   // 4. Inventory tab
-  var items = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड']);
+  var items = getOrCreateSheet(ss, 'Inventory', ['सामान का नाम (हिंदी)', 'सामान का नाम (English)', 'श्रेणी', 'इकाई', 'बिक्री दर (₹)', 'खरीद दर (₹)', 'स्टॉक मात्रा', 'न्यूनतम स्टॉक चेतावनी', 'बारकोड', 'थोक सीमा', 'थोक दर (₹)', 'उपहार (मुफ्त)']);
   if (items.getLastRow() <= 1) {
-    items.appendRow(['अरहर / तूर दाल (प्रीमियम)', 'Toor Dal (Arhar)', 'dal_pulses', 'KG', 160, 142, 50, 10, '8901001']);
-    items.appendRow(['फॉर्च्यून सरसों तेल (1 लीटर)', 'Fortune Mustard Oil 1L', 'oil_ghee', 'PACKET', 155, 138, 45, 10, '8906007']);
-    items.appendRow(['आशीर्वाद चक्की आटा (10 किग्रा)', 'Aashirvaad Atta 10kg', 'flour_grains', 'PACKET', 420, 385, 18, 4, '8901030']);
-    items.appendRow(['अमूल शुद्ध देशी घी (1 लीटर)', 'Amul Pure Ghee 1L', 'oil_ghee', 'PIECE', 650, 590, 12, 3, '8901262']);
-    items.appendRow(['टाटा नमक (1 किग्रा)', 'Tata Salt 1kg', 'spices_masala', 'PACKET', 28, 24, 80, 15, '8901058']);
-    items.appendRow(['सर्फ एक्सेल क्विक वॉश (1 किग्रा)', 'Surf Excel 1kg', 'soap_detergent', 'PACKET', 145, 128, 40, 8, '8901038']);
-    items.appendRow(['मैगी 2-मिनट नूडल्स (4 का पैक)', 'Maggi Noodles Pack', 'snacks_biscuit', 'PACKET', 56, 48, 35, 7, '8901721']);
+    items.appendRow(['अरहर / तूर दाल (प्रीमियम)', 'Toor Dal (Arhar)', 'dal_pulses', 'KG', 160, 142, 50, 10, '8901001', 5, 145, 'नहीं']);
+    items.appendRow(['फॉर्च्यून सरसों तेल (1 लीटर)', 'Fortune Mustard Oil 1L', 'oil_ghee', 'PACKET', 155, 138, 45, 10, '8906007', '', '', 'नहीं']);
+    items.appendRow(['आशीर्वाद चक्की आटा (10 किग्रा)', 'Aashirvaad Atta 10kg', 'flour_grains', 'PACKET', 420, 385, 18, 4, '8901030', '', '', 'नहीं']);
+    items.appendRow(['अमूल शुद्ध देशी घी (1 लीटर)', 'Amul Pure Ghee 1L', 'oil_ghee', 'PIECE', 650, 590, 12, 3, '8901262', '', '', 'नहीं']);
+    items.appendRow(['टाटा नमक (1 किग्रा)', 'Tata Salt 1kg', 'spices_masala', 'PACKET', 28, 24, 80, 15, '8901058', '', '', 'नहीं']);
   }
 
-  // 5. Dashboard Home
+  // 5. Vendors tab
+  var ven = getOrCreateSheet(ss, 'Vendors', ['सप्लायर का नाम', 'फर्म / एजेंसी का नाम', 'मोबाइल नंबर', 'श्रेणी', 'बकाया देना (₹)', 'कुल खरीद (₹)', 'कुल भुगतान (₹)', 'पता / विवरण']);
+  if (ven.getLastRow() <= 1) {
+    ven.appendRow(['श्री राम ट्रेडिंग कंपनी', 'श्री राम दाल, चीनी व अनाज सप्लायर', '9826112244', 'दाल, चीनी, अनाज', 3200, 15400, 12200, 'दुकान नं. 12, नई अनाज मंडी, मेघपुर']);
+    ven.appendRow(['अग्रवाल ऑयल्स डिपो', 'फॉर्च्यून व अमूल डिस्ट्रीब्यूटर', '9893556677', 'तेल व घी', 1550, 18500, 16950, 'स्टेशन रोड, मेघपुर']);
+    ven.appendRow(['गुप्ता किराना एजेंसी', 'गुप्ता ब्रदर्स एफएमसीजी', '9425889900', 'मसाले, सर्फ, साबुन, बिस्कुट', 0, 8200, 8200, 'मेन मार्केट, मेघपुर']);
+  }
+
+  // 6. VendorLedger tab
+  var vl = getOrCreateSheet(ss, 'VendorLedger', ['तारीख व समय', 'सप्लायर का नाम', 'लेनदेन प्रकार', 'कुल राशि (₹)', 'भुगतान (₹)', 'बाकी (₹)', 'बिल सं.', 'सामान विवरण', 'शेष बकाया (₹)']);
+  if (vl.getLastRow() <= 1) {
+    vl.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'श्री राम ट्रेडिंग कंपनी', 'माल खरीदा (PURCHASE)', 15400, 12200, 3200, 'SR/2026/104', 'अरहर दाल 100KG, चीनी 200KG', 3200]);
+    vl.appendRow([new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }), 'अग्रवाल ऑयल्स डिपो', 'माल खरीदा (PURCHASE)', 18500, 16950, 1550, 'AG-998', 'सरसों तेल 5 पेटी, अमूल घी 2 पेटी', 1550]);
+  }
+
+  // 7. Dashboard Home
   var home = getOrCreateSheet(ss, 'मुख्य डैशबोर्ड');
   home.clear();
   home.appendRow(['🏪 DEN किराना POS एवं डिजिटल खाता बही (2-Way Live Sync Active)']);
   home.appendRow(['']);
-  home.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 4 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
-  home.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल और नकद/उधार राशि']);
-  home.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का पूरा हिसाब']);
+  home.appendRow(['📌 आपकी दुकान का सारा रिकॉर्ड नीचे दिए गए 6 अलग-अलग टैब्स (Tabs) में सुरक्षित है:']);
+  home.appendRow(['1. 🧾 Invoices टैब:', 'दुकान के सभी बिक्री बिल, छूट व नकद/उधार राशि']);
+  home.appendRow(['2. 📒 Ledger टैब:', 'तारीख अनुसार ग्राहक उधारी (Debit) एवं जमा (Credit) का हिसाब']);
   home.appendRow(['3. 👥 Customers टैब:', 'ग्राहकों के नाम, फोन, उधारी सीमा व वर्तमान कुल बकाया']);
   home.appendRow(['4. 📦 Inventory टैब:', 'दुकान का सारा सामान, खरीद/बिक्री दर और मौजूदा स्टॉक']);
+  home.appendRow(['5. 🏭 Vendors टैब:', 'सप्लायर / महाजन, फर्म नाम, और उनको कितना देना बाकी है']);
+  home.appendRow(['6. 🚚 VendorLedger टैब:', 'सप्लायर खरीद इनवर्ड बिल व भुगतान बहीखाता']);
   home.appendRow(['']);
-  home.appendRow(['👉 डेटा देखने के लिए स्क्रीन के सबसे नीचे इन टैब्स [ Invoices ] [ Ledger ] [ Customers ] [ Inventory ] पर क्लिक करें!']);
+  home.appendRow(['👉 डेटा देखने के लिए नीचे दिए टैब्स [ Invoices ] [ Ledger ] [ Customers ] [ Inventory ] [ Vendors ] [ VendorLedger ] पर क्लिक करें!']);
   home.appendRow(['अंतिम सिंक समय:', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })]);
 
-  Logger.log('Success! All 5 tabs created and filled.');
+  Logger.log('Success! All 6 tabs created and filled.');
 }
 `;
 
@@ -488,7 +606,7 @@ export async function syncPendingToGoogleSheets(
 }
 
 /**
- * 2. PULL: Pulls latest bills, customers, ledger and inventory from Google Sheets into local IndexedDB
+ * 2. PULL: Pulls latest bills, customers, ledger, items & vendors from Google Sheets into local IndexedDB
  */
 export async function pullFromGoogleSheets(
   webhookUrl: string,
@@ -498,6 +616,8 @@ export async function pullFromGoogleSheets(
   newInvoices: number;
   newLedgers: number;
   updatedCustomers: number;
+  updatedItems: number;
+  updatedVendors: number;
   message: string;
 }> {
   const check = validateWebhookUrl(webhookUrl);
@@ -507,6 +627,8 @@ export async function pullFromGoogleSheets(
       newInvoices: 0,
       newLedgers: 0,
       updatedCustomers: 0,
+      updatedItems: 0,
+      updatedVendors: 0,
       message: check.error || 'अमान्य Webhook URL'
     };
   }
@@ -522,14 +644,16 @@ export async function pullFromGoogleSheets(
 
     const data = await resp.json();
 
-    // Check if the old Apps Script is running (returns status 'online' instead of 'success')
+    // Check if old Apps Script is running (returns status 'online' instead of 'success')
     if (data.status === 'online' && !data.invoices) {
       return {
         success: true,
         newInvoices: 0,
         newLedgers: 0,
         updatedCustomers: 0,
-        message: 'Google Sheets सक्रिय है। 2-तरफा लाइव सिंक हेतु Apps Script में नया कोड अपडेट करें।'
+        updatedItems: 0,
+        updatedVendors: 0,
+        message: 'Google Sheets सक्रिय है। पूर्ण 2-तरफा लाइव सिंक हेतु Apps Script में नया कोड अपडेट करें।'
       };
     }
 
@@ -540,6 +664,8 @@ export async function pullFromGoogleSheets(
     let newInvoicesCount = 0;
     let newLedgersCount = 0;
     let updatedCustomersCount = 0;
+    let updatedItemsCount = 0;
+    let updatedVendorsCount = 0;
 
     // A. Sync Invoices from Cloud into Local IndexedDB
     if (Array.isArray(data.invoices) && data.invoices.length > 0) {
@@ -566,8 +692,8 @@ export async function pullFromGoogleSheets(
             customerName: cloudInv.customerName || 'नकद ग्राहक',
             customerMobile: cloudInv.customerMobile || '',
             items: items,
-            subtotal: cloudInv.grandTotal,
-            discount: 0,
+            subtotal: cloudInv.subtotal || cloudInv.grandTotal,
+            discount: cloudInv.discount || 0,
             grandTotal: cloudInv.grandTotal,
             paidAmount: cloudInv.paidAmount,
             dueAmount: cloudInv.dueAmount,
@@ -595,6 +721,7 @@ export async function pullFromGoogleSheets(
 
         if (!existing) {
           await db.ledger.add({
+            customerId: 0,
             customerName: cloudLed.customerName,
             type: cloudLed.type,
             amount: cloudLed.amount,
@@ -642,14 +769,130 @@ export async function pullFromGoogleSheets(
       }
     }
 
+    // D. Sync Inventory Items & Stock from Cloud
+    if (Array.isArray(data.items) && data.items.length > 0) {
+      for (const cloudItem of data.items) {
+        if (!cloudItem.nameHi && !cloudItem.nameEn) continue;
+        const existing = cloudItem.barcode
+          ? await db.items.where('barcode').equals(cloudItem.barcode).first()
+          : (cloudItem.nameHi ? await db.items.where('nameHi').equals(cloudItem.nameHi).first() : null) ||
+            (cloudItem.nameEn ? await db.items.where('nameEn').equals(cloudItem.nameEn).first() : null);
+
+        if (existing && existing.id) {
+          await db.items.update(existing.id, {
+            salePrice: cloudItem.salePrice ?? existing.salePrice,
+            costPrice: cloudItem.costPrice ?? existing.costPrice,
+            stockQty: cloudItem.stockQty ?? existing.stockQty,
+            unit: cloudItem.unit || existing.unit,
+            category: cloudItem.category || existing.category,
+            lowStockThreshold: cloudItem.lowStockThreshold || existing.lowStockThreshold,
+            bulkDiscountThreshold: cloudItem.bulkDiscountThreshold ?? existing.bulkDiscountThreshold,
+            bulkDiscountRate: cloudItem.bulkDiscountRate ?? existing.bulkDiscountRate,
+            isComplementary: cloudItem.isComplementary ?? existing.isComplementary,
+            updatedAt: Date.now()
+          });
+          updatedItemsCount++;
+        } else {
+          await db.items.add({
+            nameHi: cloudItem.nameHi || cloudItem.nameEn,
+            nameEn: cloudItem.nameEn || cloudItem.nameHi,
+            category: cloudItem.category || 'other',
+            unit: cloudItem.unit || 'PIECE',
+            salePrice: cloudItem.salePrice || 0,
+            costPrice: cloudItem.costPrice || 0,
+            stockQty: cloudItem.stockQty || 0,
+            lowStockThreshold: cloudItem.lowStockThreshold || 5,
+            barcode: cloudItem.barcode || '',
+            bulkDiscountThreshold: cloudItem.bulkDiscountThreshold,
+            bulkDiscountRate: cloudItem.bulkDiscountRate,
+            isComplementary: Boolean(cloudItem.isComplementary),
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+          updatedItemsCount++;
+        }
+      }
+    }
+
+    // E. Sync Vendors from Cloud
+    if (Array.isArray(data.vendors) && data.vendors.length > 0) {
+      for (const cloudV of data.vendors) {
+        if (!cloudV.name) continue;
+        const existing = cloudV.mobile && cloudV.mobile !== '0000000000'
+          ? await db.vendors.where('mobile').equals(cloudV.mobile).first()
+          : await db.vendors.where('name').equals(cloudV.name).first();
+
+        if (existing && existing.id) {
+          await db.vendors.update(existing.id, {
+            currentBalance: cloudV.currentBalance ?? existing.currentBalance,
+            totalPurchased: cloudV.totalPurchased ?? existing.totalPurchased,
+            totalPaid: cloudV.totalPaid ?? existing.totalPaid,
+            firmName: cloudV.firmName || existing.firmName,
+            category: cloudV.category || existing.category,
+            address: cloudV.address || existing.address,
+            updatedAt: Date.now()
+          });
+          updatedVendorsCount++;
+        } else if (!existing) {
+          await db.vendors.add({
+            name: cloudV.name,
+            firmName: cloudV.firmName || '',
+            mobile: cloudV.mobile || '',
+            address: cloudV.address || '',
+            category: cloudV.category || 'general',
+            currentBalance: cloudV.currentBalance || 0,
+            totalPurchased: cloudV.totalPurchased || 0,
+            totalPaid: cloudV.totalPaid || 0,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+          updatedVendorsCount++;
+        }
+      }
+    }
+
+    // F. Sync VendorLedger from Cloud
+    if (Array.isArray(data.vendorLedgers) && data.vendorLedgers.length > 0) {
+      for (const cloudVL of data.vendorLedgers) {
+        const existing = await db.vendorLedger
+          .where('amount')
+          .equals(cloudVL.amount)
+          .filter((l) =>
+            l.vendorName === cloudVL.vendorName &&
+            l.type === cloudVL.type &&
+            (cloudVL.billNumber ? l.billNumber === cloudVL.billNumber : true)
+          )
+          .first();
+
+        if (!existing) {
+          const matchedVendor = await db.vendors.where('name').equals(cloudVL.vendorName).first();
+          await db.vendorLedger.add({
+            vendorId: matchedVendor?.id || 0,
+            vendorName: cloudVL.vendorName,
+            type: cloudVL.type,
+            amount: cloudVL.amount,
+            paidAmount: cloudVL.paidAmount,
+            dueAmount: cloudVL.dueAmount,
+            billNumber: cloudVL.billNumber,
+            description: cloudVL.description || '',
+            runningBalance: cloudVL.runningBalance || 0,
+            syncedToGoogle: true,
+            createdAt: cloudVL.createdAt || Date.now()
+          });
+        }
+      }
+    }
+
     return {
       success: true,
       newInvoices: newInvoicesCount,
       newLedgers: newLedgersCount,
       updatedCustomers: updatedCustomersCount,
-      message: newInvoicesCount > 0 || newLedgersCount > 0
-        ? `📥 Google Sheets से ${newInvoicesCount} नए बिल व ${newLedgersCount} खाता प्रविष्टियां प्राप्त हुईं!`
-        : 'Google Sheets के साथ सभी बिल पहले से सिंक हैं।'
+      updatedItems: updatedItemsCount,
+      updatedVendors: updatedVendorsCount,
+      message: (newInvoicesCount > 0 || updatedCustomersCount > 0 || updatedItemsCount > 0 || updatedVendorsCount > 0)
+        ? `📥 Google Sheets से ${newInvoicesCount} नए बिल, ${updatedCustomersCount} ग्राहक, ${updatedItemsCount} सामान, व ${updatedVendorsCount} सप्लायर सिंक हुए!`
+        : 'Google Sheets के साथ सभी बिल व सामान पहले से सिंक हैं।'
     };
   } catch (err: any) {
     console.error('Pull from Google Sheets failed:', err);
@@ -658,6 +901,8 @@ export async function pullFromGoogleSheets(
       newInvoices: 0,
       newLedgers: 0,
       updatedCustomers: 0,
+      updatedItems: 0,
+      updatedVendors: 0,
       message: err?.message || 'Google Sheets से डेटा प्राप्त नहीं हो सका'
     };
   }
@@ -699,6 +944,12 @@ export async function syncTwoWay(
   if (pullRes.updatedCustomers > 0) {
     summaryParts.push(`👥 ${pullRes.updatedCustomers} ग्राहक अपडेट`);
   }
+  if (pullRes.updatedItems && pullRes.updatedItems > 0) {
+    summaryParts.push(`📦 ${pullRes.updatedItems} सामान अपडेट`);
+  }
+  if (pullRes.updatedVendors && pullRes.updatedVendors > 0) {
+    summaryParts.push(`🏭 ${pullRes.updatedVendors} सप्लायर अपडेट`);
+  }
 
   let finalMsg = '';
   if (summaryParts.length > 0) {
@@ -716,6 +967,8 @@ export async function syncTwoWay(
     pulledInvoices: pullRes.newInvoices,
     pulledLedgers: pullRes.newLedgers,
     updatedCustomers: pullRes.updatedCustomers,
+    updatedItems: pullRes.updatedItems,
+    updatedVendors: pullRes.updatedVendors,
     message: finalMsg
   };
 }
@@ -742,6 +995,8 @@ export async function syncFullDatabaseToGoogleSheets(
     const allLedgers = await db.ledger.toArray();
     const allCustomers = await db.customers.toArray();
     const allItems = await db.items.toArray();
+    const allVendors = await db.vendors.toArray();
+    const allVendorLedgers = await db.vendorLedger.toArray();
 
     const payload = {
       action: 'SYNC_FULL',
@@ -750,6 +1005,8 @@ export async function syncFullDatabaseToGoogleSheets(
       ledgers: allLedgers,
       customers: allCustomers,
       items: allItems,
+      vendors: allVendors,
+      vendorLedgers: allVendorLedgers,
       timestamp: Date.now()
     };
 
@@ -773,7 +1030,8 @@ export async function syncFullDatabaseToGoogleSheets(
       syncedLedgers: allLedgers.length,
       syncedCustomers: allCustomers.length,
       syncedItems: allItems.length,
-      message: `✅ गूगल शीट में पूरा डेटा सिंक हुआ! (${allCustomers.length} ग्राहक, ${allItems.length} सामान, ${allInvoices.length} बिल)`
+      syncedVendors: allVendors.length,
+      message: `✅ गूगल शीट में पूरा डेटा सिंक हुआ! (${allCustomers.length} ग्राहक, ${allItems.length} सामान, ${allVendors.length} सप्लायर, ${allInvoices.length} बिल)`
     };
   } catch (error: any) {
     console.error('Full sync failed:', error);

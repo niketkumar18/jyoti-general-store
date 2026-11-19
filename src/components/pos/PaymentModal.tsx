@@ -19,7 +19,9 @@ import {
   Plus,
   Trash2,
   Gift,
-  Search
+  Search,
+  Tag,
+  Percent
 } from 'lucide-react';
 import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings, InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
@@ -40,6 +42,7 @@ interface PaymentModalProps {
   onInvoiceCreated: (invoice: Invoice, updatedCustomerBal?: number) => void;
   onTriggerRiskWarning: (customer: Customer, requestedCredit: number, onConfirm: () => void) => void;
   onOpenCustomerSelect: () => void;
+  onSetDiscount?: (discount: number) => void;
   onUpdatePrice?: (itemId: number, newPrice: number, updateCatalog?: boolean) => void;
   onUpdateQuantity?: (itemId: number, newQty: number) => void;
   onToggleComplementary?: (itemId: number) => void;
@@ -58,6 +61,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onInvoiceCreated,
   onTriggerRiskWarning,
   onOpenCustomerSelect,
+  onSetDiscount,
   onUpdatePrice,
   onUpdateQuantity,
   onToggleComplementary,
@@ -70,9 +74,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const inventoryItems = useLiveQuery(() => db.items.toArray()) || [];
   const complementaryTaggedItems = inventoryItems.filter((i) => i.isComplementary);
 
+  // Fixed rupee discount at final bill
+  const [fixedDiscount, setFixedDiscount] = useState<number>(discount || 0);
+
+  useEffect(() => {
+    setFixedDiscount(discount || 0);
+  }, [discount]);
+
+  const effectiveGrandTotal = Math.max(0, Number((subtotal - (Number(fixedDiscount) || 0)).toFixed(2)));
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
-  const [cashTendered, setCashTendered] = useState<number>(grandTotal);
-  const [splitPaidAmount, setSplitPaidAmount] = useState<number>(Math.floor(grandTotal / 2));
+  const [cashTendered, setCashTendered] = useState<number>(effectiveGrandTotal);
+  const [splitPaidAmount, setSplitPaidAmount] = useState<number>(Math.floor(effectiveGrandTotal / 2));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUploadedQr, setShowUploadedQr] = useState(Boolean(settings.qrCodeImageUrl));
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -88,10 +101,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showComplementaryPicker, setShowComplementaryPicker] = useState(false);
   const [compSearchQuery, setCompSearchQuery] = useState('');
 
-  // Auto-sync cashTendered when grandTotal changes (e.g. after price/quantity edit)
+  // Auto-sync cashTendered and splitPaidAmount when effectiveGrandTotal changes
   useEffect(() => {
-    setCashTendered(grandTotal);
-  }, [grandTotal]);
+    setCashTendered(effectiveGrandTotal);
+    setSplitPaidAmount(Math.floor(effectiveGrandTotal / 2));
+  }, [effectiveGrandTotal]);
+
+  const handleDiscountChange = (val: number) => {
+    const cleanVal = Math.max(0, Math.min(subtotal, val));
+    setFixedDiscount(cleanVal);
+    onSetDiscount?.(cleanVal);
+  };
 
   // If cart emptied, close payment modal
   useEffect(() => {
@@ -121,25 +141,25 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   if (!isOpen) return null;
 
   // Change to return in cash mode
-  const changeToReturn = Math.max(0, cashTendered - grandTotal);
+  const changeToReturn = Math.max(0, Number((cashTendered - effectiveGrandTotal).toFixed(2)));
   
   // Calculate paid & due according to method
-  let paidAmount = grandTotal;
+  let paidAmount = effectiveGrandTotal;
   let dueAmount = 0;
 
   if (paymentMethod === 'CREDIT') {
     paidAmount = 0;
-    dueAmount = grandTotal;
+    dueAmount = effectiveGrandTotal;
   } else if (paymentMethod === 'SPLIT') {
-    paidAmount = Math.min(grandTotal, Math.max(0, splitPaidAmount));
-    dueAmount = Math.max(0, grandTotal - paidAmount);
+    paidAmount = Math.min(effectiveGrandTotal, Math.max(0, splitPaidAmount));
+    dueAmount = Math.max(0, Number((effectiveGrandTotal - paidAmount).toFixed(2)));
   }
 
   // UPI payment URI for dynamic QR code
   // format: upi://pay?pa=shop@upi&pn=ShopName&am=1250&cu=INR&tn=Bill
   const shopUpi = settings.upiId || 'denpos@upi';
   const shopNameEncoded = encodeURIComponent(settings.shopName || 'DEN Kirana');
-  const upiPayUrl = `upi://pay?pa=${shopUpi}&pn=${shopNameEncoded}&am=${grandTotal}&cu=INR&tn=DEN-Bill`;
+  const upiPayUrl = `upi://pay?pa=${shopUpi}&pn=${shopNameEncoded}&am=${effectiveGrandTotal}&cu=INR&tn=DEN-Bill`;
 
   const processInvoiceCreation = async () => {
     setIsSubmitting(true);
@@ -170,8 +190,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         customerMobile: customer ? customer.mobile : '',
         items: invoiceItems,
         subtotal,
-        discount,
-        grandTotal,
+        discount: Number(fixedDiscount) || 0,
+        grandTotal: effectiveGrandTotal,
         paidAmount,
         dueAmount,
         paymentMethod,
@@ -313,13 +333,96 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
         </div>
 
-        {/* Grand Total Display */}
-        <div className="bg-emerald-50/70 border-b border-emerald-100 p-3 sm:p-4 text-center shrink-0">
-          <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
-            {t('grand_total')}
+        {/* Billing Summary & Flat Discount Display */}
+        <div className="bg-emerald-50/80 border-b border-emerald-100 p-3.5 sm:p-4 shrink-0 space-y-2.5">
+          {/* Subtotal & Flat Discount Row */}
+          <div className="flex items-center justify-between text-xs text-slate-600 px-1 font-semibold">
+            <span>उप-योग (Subtotal):</span>
+            <span className="font-bold text-slate-900 text-sm">{formatCurrency(subtotal)}</span>
           </div>
-          <div className="text-3xl sm:text-4xl font-black text-emerald-900 mt-0.5">
-            {formatCurrency(grandTotal)}
+
+          {/* Flat Rupee Discount Interactive Control */}
+          <div className="bg-white rounded-2xl border border-emerald-200/90 p-2.5 shadow-2xs space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span>कुल छूट (Flat Discount ₹):</span>
+              </label>
+
+              <div className="relative w-32 sm:w-36">
+                <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-bold">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  max={subtotal}
+                  step="any"
+                  value={fixedDiscount === 0 ? '' : fixedDiscount}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                    handleDiscountChange(val);
+                  }}
+                  placeholder="0"
+                  className="w-full pl-6 pr-2 py-1 bg-amber-50/60 border border-amber-300 rounded-xl font-black text-sm text-amber-950 text-right focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Quick Discount Preset Chips */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              {[0, 5, 10, 20, 50, 100].map((amt) => {
+                const isSelected = fixedDiscount === amt;
+                return (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => handleDiscountChange(amt)}
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-emerald-700 text-white border-emerald-800 font-black shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {amt === 0 ? 'छूट हटाएं' : `-₹${amt}`}
+                  </button>
+                );
+              })}
+
+              {/* Round-Off Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const paise = Number((subtotal % 1).toFixed(2));
+                  if (paise > 0) {
+                    handleDiscountChange(paise);
+                  } else {
+                    const remainder = subtotal % 10;
+                    const disc = remainder > 0 ? remainder : (subtotal % 5);
+                    handleDiscountChange(disc > 0 ? disc : 0);
+                  }
+                }}
+                className="text-[10px] font-black px-2 py-0.5 rounded-lg border bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300 cursor-pointer transition-all shadow-2xs"
+                title="अंतिम बिल को सीधे 10 या 5 के गुणांक में राउंड ऑफ करें"
+              >
+                🎯 राउंड ऑफ
+              </button>
+            </div>
+          </div>
+
+          {/* Grand Total Display */}
+          <div className="flex items-center justify-between pt-1 border-t border-emerald-200/60 px-1">
+            <div>
+              <div className="text-xs font-black text-emerald-900 uppercase tracking-wider">
+                {t('grand_total')} (कुल देय):
+              </div>
+              {fixedDiscount > 0 && (
+                <span className="text-[10px] text-emerald-700 font-bold block">
+                  (₹{fixedDiscount} छूट घटाने के बाद)
+                </span>
+              )}
+            </div>
+            <div className="text-3xl sm:text-4xl font-black text-emerald-950">
+              {formatCurrency(effectiveGrandTotal)}
+            </div>
           </div>
         </div>
 
@@ -770,8 +873,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               {/* Quick Cash Suggestions */}
               <div className="flex items-center gap-1.5 pt-1">
-                {[grandTotal, Math.ceil(grandTotal / 50) * 50, Math.ceil(grandTotal / 100) * 100, 500, 2000]
-                  .filter((v, idx, arr) => v >= grandTotal && arr.indexOf(v) === idx)
+                {[effectiveGrandTotal, Math.ceil(effectiveGrandTotal / 50) * 50, Math.ceil(effectiveGrandTotal / 100) * 100, 500, 2000]
+                  .filter((v, idx, arr) => v >= effectiveGrandTotal && arr.indexOf(v) === idx)
                   .slice(0, 4)
                   .map((amount) => (
                     <button
@@ -812,7 +915,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    ⚡ बिल राशि QR ({formatCurrency(grandTotal)})
+                    ⚡ बिल राशि QR ({formatCurrency(effectiveGrandTotal)})
                   </button>
                   <button
                     type="button"
@@ -870,7 +973,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
 
                 <p className="text-xs text-emerald-700 font-bold mt-1">
-                  ग्राहक से कहें कि किसी भी UPI ऐप (GPay, PhonePe, Paytm) से स्कैन कर {formatCurrency(grandTotal)} का भुगतान करें।
+                  ग्राहक से कहें कि किसी भी UPI ऐप (GPay, PhonePe, Paytm) से स्कैन कर {formatCurrency(effectiveGrandTotal)} का भुगतान करें।
                 </p>
               </div>
             </div>
@@ -881,7 +984,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-amber-900 font-bold">{t('due_balance')}</span>
                 <span className="text-base font-extrabold text-amber-900">
-                  {formatCurrency(grandTotal)}
+                  {formatCurrency(effectiveGrandTotal)}
                 </span>
               </div>
               {customer && (
@@ -902,7 +1005,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  max={grandTotal}
+                  max={effectiveGrandTotal}
                   value={splitPaidAmount}
                   onChange={(e) => setSplitPaidAmount(Number(e.target.value) || 0)}
                   className="w-full px-4 py-2 bg-white border border-blue-300 rounded-xl font-bold text-base text-slate-900 focus:ring-2 focus:ring-blue-500"
