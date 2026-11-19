@@ -21,7 +21,7 @@ import {
   numberToWordsINR 
 } from '../../utils/formatters';
 import { openWhatsAppBill } from '../../utils/whatsapp';
-import { generateInvoicePdf } from '../../utils/pdfGenerator';
+import { generateInvoicePdf, printInvoice } from '../../utils/pdfGenerator';
 
 interface InvoiceViewModalProps {
   isOpen: boolean;
@@ -44,7 +44,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
   if (!isOpen || !invoice) return null;
 
   const handlePrint = () => {
-    window.print();
+    printInvoice(invoice, settings, customerTotalBalance);
   };
 
   const handleDownloadPdf = () => {
@@ -59,8 +59,8 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
   const dueDateTimestamp = invoice.createdAt + 7 * 24 * 60 * 60 * 1000;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in print:p-0 print:bg-white print:static print:overflow-visible">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full overflow-hidden flex flex-col max-h-[95dvh] print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in print-invoice-modal-overlay print:p-0 print:bg-white print:static print:overflow-visible">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full overflow-hidden flex flex-col max-h-[95dvh] print-invoice-modal-content print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
         {/* Modal Top Header */}
         <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0 print:hidden">
           <div className="flex items-center gap-2.5">
@@ -86,7 +86,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
         </div>
 
         {/* Printable Bill Area - myBillBook / Vyapar Official Template */}
-        <div className="p-3 sm:p-6 bg-slate-200/70 overflow-y-auto flex-1 min-h-0 flex justify-center">
+        <div className="p-3 sm:p-6 bg-slate-200/70 overflow-y-auto flex-1 min-h-0 flex justify-center print-invoice-scroll-area print:p-0 print:bg-white print:overflow-visible print:block print:h-auto print:max-h-none">
           <div 
             id="den-printable-receipt" 
             className="bg-white shadow-xl border-2 border-[#b48a44] p-4 sm:p-6 w-full max-w-2xl text-xs text-slate-800 relative rounded-sm print:shadow-none print:border print:w-full print:p-2"
@@ -199,9 +199,9 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
               </div>
 
               {/* Items Table with Full Borders */}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto print:overflow-visible">
                 <table className="w-full text-left border-collapse border border-[#b48a44]/60 text-xs">
-                  <thead className="bg-[#f9f5ec] text-slate-800 font-black uppercase text-[10px]">
+                  <thead className="bg-[#f9f5ec] text-slate-800 font-black uppercase text-[10px] print:table-header-group">
                     <tr className="border-b border-[#b48a44]/60">
                       <th className="p-2 border-r border-[#b48a44]/40 w-10 text-center">No</th>
                       <th className="p-2 border-r border-[#b48a44]/40">Items</th>
@@ -212,7 +212,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {invoice.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50">
+                      <tr key={idx} className="hover:bg-slate-50/50 print:break-inside-avoid">
                         <td className="p-2 border-r border-slate-200 text-center text-slate-500 font-semibold">
                           {idx + 1}
                         </td>
@@ -244,7 +244,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
                     ))}
 
                     {/* Subtotal Row */}
-                    <tr className="bg-[#faf6ee] font-black border-t-2 border-[#b48a44]/60 text-slate-900">
+                    <tr className="bg-[#faf6ee] font-black border-t-2 border-[#b48a44]/60 text-slate-900 print:break-inside-avoid">
                       <td colSpan={2} className="p-2 border-r border-slate-300 text-right uppercase text-[10px] tracking-wider">
                         SUBTOTAL
                       </td>
@@ -261,7 +261,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
               </div>
 
               {/* Bottom Section: Terms (Left) + Totals, In Words, Signature (Right) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 print-avoid-break print:break-inside-avoid">
                 {/* Left: Terms and Conditions */}
                 <div className="space-y-3">
                   <div>
