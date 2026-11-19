@@ -5,6 +5,8 @@ import type { InventoryItem, UnitType, CategoryType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { db } from '../../db';
 import { useCategories } from '../../utils/categories';
+import { useSettings } from '../../context/SettingsContext';
+import { syncItemsToGoogleSheets } from '../../utils/googleSheetsSync';
 import { CategoryManageModal } from './CategoryManageModal';
 
 interface ItemFormModalProps {
@@ -21,6 +23,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   onSaved
 }) => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
   const { categories, addCategory } = useCategories();
   const vendors = useLiveQuery(() => db.vendors.toArray()) || [];
 
@@ -166,6 +169,11 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
     } else {
       const newId = await db.items.add(payload as any);
       savedItem = { ...payload, id: newId as number };
+    }
+
+    if (settings.googleSheetsUrl) {
+      syncItemsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+        .catch(e => console.error('Failed to sync item to Google Sheets:', e));
     }
 
     if (onSaved) onSaved(savedItem);

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { User, UserPlus, Phone, Search, X } from 'lucide-react';
 import type { Customer } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
+import { syncCustomersToGoogleSheets } from '../../utils/googleSheetsSync';
 import { CreditBadge } from '../common/CreditBadge';
 import { formatCurrency } from '../../utils/formatters';
 import { db } from '../../db';
@@ -20,6 +22,7 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
   onCustomerCreated
 }) => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -49,6 +52,11 @@ export const CustomerSelect: React.FC<CustomerSelectProps> = ({
     const newId = await db.customers.add(newCustomerData as any);
     const created: Customer = { ...newCustomerData, id: newId as number };
     
+    if (settings.googleSheetsUrl) {
+      syncCustomersToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+        .catch(e => console.error('Failed to sync new customer:', e));
+    }
+
     if (onCustomerCreated) {
       onCustomerCreated(created);
     }

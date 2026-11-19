@@ -3,6 +3,7 @@ import { X, UserCheck, UserPlus, Shield } from 'lucide-react';
 import type { Customer } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
+import { syncCustomersToGoogleSheets } from '../../utils/googleSheetsSync';
 import { calculateRiskLevel } from '../../utils/formatters';
 import { db } from '../../db';
 
@@ -78,6 +79,11 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
         updatedAt: Date.now()
       };
       await db.customers.add(newCustomer as any);
+    }
+
+    if (settings.googleSheetsUrl) {
+      syncCustomersToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+        .catch(e => console.error('Failed to sync customer to Google Sheets:', e));
     }
 
     onClose();

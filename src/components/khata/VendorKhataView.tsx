@@ -20,6 +20,8 @@ import {
 import { db } from '../../db';
 import type { Vendor } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
+import { deleteVendorFromGoogleSheets } from '../../utils/googleSheetsSync';
 import { formatCurrency } from '../../utils/formatters';
 import { VendorPurchaseModal } from './VendorPurchaseModal';
 import { VendorPaymentModal } from './VendorPaymentModal';
@@ -29,6 +31,7 @@ import { exportVendorKhataToCsv } from '../../utils/excelExport';
 
 export const VendorKhataView: React.FC = () => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
   const vendors = useLiveQuery(() => db.vendors.toArray()) || [];
   const vendorLedgerEntries = useLiveQuery(() => db.vendorLedger.toArray()) || [];
 
@@ -105,6 +108,9 @@ export const VendorKhataView: React.FC = () => {
       try {
         await db.vendors.delete(vendor.id);
         await db.vendorLedger.where('vendorId').equals(vendor.id).delete();
+        if (settings.googleSheetsUrl) {
+          deleteVendorFromGoogleSheets(settings.googleSheetsUrl, vendor, settings.googleSheetDocumentUrl);
+        }
       } catch (err) {
         console.error('Failed to delete vendor:', err);
         alert('सप्लायर हटाने में त्रुटि हुई');

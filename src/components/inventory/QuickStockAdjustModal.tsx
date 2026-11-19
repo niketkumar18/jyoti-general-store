@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Plus, Minus, Check, PackagePlus } from 'lucide-react';
 import type { InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
+import { syncItemsToGoogleSheets } from '../../utils/googleSheetsSync';
 import { db } from '../../db';
 
 interface QuickStockAdjustModalProps {
@@ -18,6 +20,7 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
   onOpenVendorPurchase
 }) => {
   const { language } = useLanguage();
+  const { settings } = useSettings();
   const [adjustment, setAdjustment] = useState<number>(10);
   const [mode, setMode] = useState<'ADD' | 'SUBTRACT'>('ADD');
 
@@ -34,6 +37,10 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
         stockQty: Number(newStock.toFixed(2)),
         updatedAt: Date.now()
       });
+      if (settings.googleSheetsUrl) {
+        syncItemsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+          .catch(e => console.error('Failed to sync adjusted stock:', e));
+      }
     }
     onClose();
   };

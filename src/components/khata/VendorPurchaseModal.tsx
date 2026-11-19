@@ -24,7 +24,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
 import { playSuccessChime } from '../../utils/audio';
-import { syncTwoWay } from '../../utils/googleSheetsSync';
+import { syncTwoWay, syncItemsToGoogleSheets, syncVendorsToGoogleSheets } from '../../utils/googleSheetsSync';
 
 interface VendorPurchaseModalProps {
   isOpen: boolean;
@@ -312,6 +312,10 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
       // 4. Auto-sync to Google Sheets in background
       if (settings.googleSheetsUrl) {
         syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+          .then(() => {
+            syncItemsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
+            syncVendorsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl);
+          })
           .catch((e) => console.error('Vendor purchase sync error:', e));
       }
 

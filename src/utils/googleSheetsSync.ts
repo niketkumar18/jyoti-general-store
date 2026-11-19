@@ -416,6 +416,62 @@ function doPost(e) {
       });
     }
 
+    // 9. DELETE ITEM ACTION
+    if (payload.action === 'DELETE_ITEM' && (payload.barcode || payload.nameHi || payload.nameEn)) {
+      var lastRowI = sheetItems.getLastRow();
+      if (lastRowI > 1) {
+        var dataI = sheetItems.getRange(2, 1, lastRowI - 1, 9).getValues();
+        for (var di = dataI.length - 1; di >= 0; di--) {
+          var bc = String(dataI[di][8] || '').trim();
+          var hi = String(dataI[di][0] || '').trim().toLowerCase();
+          var en = String(dataI[di][1] || '').trim().toLowerCase();
+          if (
+            (payload.barcode && bc && bc === String(payload.barcode).trim()) ||
+            (payload.nameHi && hi && hi === String(payload.nameHi).trim().toLowerCase()) ||
+            (payload.nameEn && en && en === String(payload.nameEn).trim().toLowerCase())
+          ) {
+            sheetItems.deleteRow(di + 2);
+          }
+        }
+      }
+    }
+
+    // 10. DELETE CUSTOMER ACTION
+    if (payload.action === 'DELETE_CUSTOMER' && (payload.name || payload.mobile)) {
+      var lastRowC = sheetCust.getLastRow();
+      if (lastRowC > 1) {
+        var dataC = sheetCust.getRange(2, 1, lastRowC - 1, 2).getValues();
+        for (var dc = dataC.length - 1; dc >= 0; dc--) {
+          var cName = String(dataC[dc][0] || '').trim().toLowerCase();
+          var cMob = String(dataC[dc][1] || '').trim();
+          if (
+            (payload.mobile && cMob && cMob === String(payload.mobile).trim()) ||
+            (payload.name && cName && cName === String(payload.name).trim().toLowerCase())
+          ) {
+            sheetCust.deleteRow(dc + 2);
+          }
+        }
+      }
+    }
+
+    // 11. DELETE VENDOR ACTION
+    if (payload.action === 'DELETE_VENDOR' && (payload.name || payload.mobile)) {
+      var lastRowV = sheetVendors.getLastRow();
+      if (lastRowV > 1) {
+        var dataV = sheetVendors.getRange(2, 1, lastRowV - 1, 3).getValues();
+        for (var dv = dataV.length - 1; dv >= 0; dv--) {
+          var vName = String(dataV[dv][0] || '').trim().toLowerCase();
+          var vMob = String(dataV[dv][2] || '').trim();
+          if (
+            (payload.mobile && vMob && vMob === String(payload.mobile).trim()) ||
+            (payload.name && vName && vName === String(payload.name).trim().toLowerCase())
+          ) {
+            sheetVendors.deleteRow(dv + 2);
+          }
+        }
+      }
+    }
+
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
       message: 'All 6 tabs synced successfully!'
@@ -804,10 +860,17 @@ export async function pullFromGoogleSheets(
 
     // C. Sync Customers from Cloud
     if (Array.isArray(data.customers) && data.customers.length > 0) {
+      const allLocalCust = await db.customers.toArray();
+      const cloudCustKeys = new Set<string>();
+
       for (const cloudCust of data.customers) {
         if (!cloudCust.name) continue;
         const nameTrim = String(cloudCust.name).trim();
         const mobileTrim = String(cloudCust.mobile || '').trim();
+
+        if (nameTrim) cloudCustKeys.add(`name:${nameTrim.toLowerCase()}`);
+        if (mobileTrim && mobileTrim !== '0000000000') cloudCustKeys.add(`mob:${mobileTrim}`);
+
         const existing = mobileTrim && mobileTrim !== '0000000000'
           ? await db.customers.where('mobile').equals(mobileTrim).first()
           : await db.customers.where('name').equals(nameTrim).first();
@@ -836,16 +899,33 @@ export async function pullFromGoogleSheets(
           updatedCustomersCount++;
         }
       }
+
+      // Remove local customers that were deleted from Google Sheet
+      for (const localC of allLocalCust) {
+        if (!localC.id) continue;
+        const nameKey = localC.name ? `name:${localC.name.trim().toLowerCase()}` : '';
+        const mobKey = localC.mobile && localC.mobile !== '0000000000' ? `mob:${localC.mobile.trim()}` : '';
+        const inCloud = (nameKey && cloudCustKeys.has(nameKey)) || (mobKey && cloudCustKeys.has(mobKey));
+        if (!inCloud) {
+          await db.customers.delete(localC.id);
+        }
+      }
     }
 
     // D. Sync Inventory Items & Stock from Cloud
     if (Array.isArray(data.items) && data.items.length > 0) {
       const allLocalItems = await db.items.toArray();
+      const cloudItemKeys = new Set<string>();
+
       for (const cloudItem of data.items) {
         if (!cloudItem.nameHi && !cloudItem.nameEn) continue;
         const nameHiTrim = String(cloudItem.nameHi || '').trim();
         const nameEnTrim = String(cloudItem.nameEn || '').trim();
         const barcodeTrim = String(cloudItem.barcode || '').trim();
+
+        if (barcodeTrim) cloudItemKeys.add(`bc:${barcodeTrim}`);
+        if (nameHiTrim) cloudItemKeys.add(`hi:${nameHiTrim.toLowerCase()}`);
+        if (nameEnTrim) cloudItemKeys.add(`en:${nameEnTrim.toLowerCase()}`);
 
         let existing = barcodeTrim
           ? await db.items.where('barcode').equals(barcodeTrim).first()
@@ -901,14 +981,34 @@ export async function pullFromGoogleSheets(
           updatedItemsCount++;
         }
       }
+
+      // Remove local items that were deleted from Google Sheet
+      for (const localItem of allLocalItems) {
+        if (!localItem.id) continue;
+        const bc = localItem.barcode ? `bc:${localItem.barcode.trim()}` : '';
+        const hi = localItem.nameHi ? `hi:${localItem.nameHi.trim().toLowerCase()}` : '';
+        const en = localItem.nameEn ? `en:${localItem.nameEn.trim().toLowerCase()}` : '';
+
+        const inCloud = (bc && cloudItemKeys.has(bc)) || (hi && cloudItemKeys.has(hi)) || (en && cloudItemKeys.has(en));
+        if (!inCloud) {
+          await db.items.delete(localItem.id);
+        }
+      }
     }
 
     // E. Sync Vendors from Cloud
     if (Array.isArray(data.vendors) && data.vendors.length > 0) {
+      const allLocalVendors = await db.vendors.toArray();
+      const cloudVendorKeys = new Set<string>();
+
       for (const cloudV of data.vendors) {
         if (!cloudV.name) continue;
         const nameTrim = String(cloudV.name).trim();
         const mobileTrim = String(cloudV.mobile || '').trim();
+
+        if (nameTrim) cloudVendorKeys.add(`name:${nameTrim.toLowerCase()}`);
+        if (mobileTrim && mobileTrim !== '0000000000') cloudVendorKeys.add(`mob:${mobileTrim}`);
+
         const existing = mobileTrim && mobileTrim !== '0000000000'
           ? await db.vendors.where('mobile').equals(mobileTrim).first()
           : await db.vendors.where('name').equals(nameTrim).first();
@@ -939,6 +1039,17 @@ export async function pullFromGoogleSheets(
             updatedAt: Date.now()
           });
           updatedVendorsCount++;
+        }
+      }
+
+      // Remove local vendors that were deleted from Google Sheet
+      for (const localV of allLocalVendors) {
+        if (!localV.id) continue;
+        const nameKey = localV.name ? `name:${localV.name.trim().toLowerCase()}` : '';
+        const mobKey = localV.mobile && localV.mobile !== '0000000000' ? `mob:${localV.mobile.trim()}` : '';
+        const inCloud = (nameKey && cloudVendorKeys.has(nameKey)) || (mobKey && cloudVendorKeys.has(mobKey));
+        if (!inCloud) {
+          await db.vendors.delete(localV.id);
         }
       }
     }
@@ -1155,5 +1266,237 @@ export async function syncFullDatabaseToGoogleSheets(
       syncedLedgers: 0,
       message: error?.message || 'सिंक विफल रहा'
     };
+  }
+}
+
+/**
+ * 4. SYNC ITEMS: Push current inventory items to Google Sheets
+ */
+export async function syncItemsToGoogleSheets(
+  webhookUrl?: string,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const items = await db.items.toArray();
+    const payload = {
+      action: 'SYNC_ITEMS',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      items: items,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to sync items to Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * 5. DELETE ITEM: Remove item from Google Sheets immediately
+ */
+export async function deleteItemFromGoogleSheets(
+  webhookUrl: string | undefined,
+  item: InventoryItem,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const remainingItems = await db.items.toArray();
+    const payload = {
+      action: 'DELETE_ITEM',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      barcode: item.barcode || '',
+      nameHi: item.nameHi || '',
+      nameEn: item.nameEn || '',
+      items: remainingItems,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to delete item from Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * 6. SYNC CUSTOMERS: Push current customers to Google Sheets
+ */
+export async function syncCustomersToGoogleSheets(
+  webhookUrl?: string,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const customers = await db.customers.toArray();
+    const payload = {
+      action: 'SYNC_CUSTOMERS',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      customers: customers,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to sync customers to Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * 7. DELETE CUSTOMER: Remove customer from Google Sheets immediately
+ */
+export async function deleteCustomerFromGoogleSheets(
+  webhookUrl: string | undefined,
+  customer: Customer,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const remainingCustomers = await db.customers.toArray();
+    const payload = {
+      action: 'DELETE_CUSTOMER',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      name: customer.name || '',
+      mobile: customer.mobile || '',
+      customers: remainingCustomers,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to delete customer from Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * 8. SYNC VENDORS: Push current vendors to Google Sheets
+ */
+export async function syncVendorsToGoogleSheets(
+  webhookUrl?: string,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const vendors = await db.vendors.toArray();
+    const payload = {
+      action: 'SYNC_VENDORS',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      vendors: vendors,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to sync vendors to Google Sheets:', err);
+    return false;
+  }
+}
+
+/**
+ * 9. DELETE VENDOR: Remove vendor from Google Sheets immediately
+ */
+export async function deleteVendorFromGoogleSheets(
+  webhookUrl: string | undefined,
+  vendor: Vendor,
+  sheetDocumentUrl?: string
+): Promise<boolean> {
+  if (!webhookUrl) return false;
+  const check = validateWebhookUrl(webhookUrl);
+  if (!check.valid) return false;
+  try {
+    const remainingVendors = await db.vendors.toArray();
+    const payload = {
+      action: 'DELETE_VENDOR',
+      sheetId: extractSheetId(sheetDocumentUrl),
+      name: vendor.name || '',
+      mobile: vendor.mobile || '',
+      vendors: remainingVendors,
+      timestamp: Date.now()
+    };
+    await fetch(webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    });
+    return true;
+  } catch (err) {
+    console.error('Failed to delete vendor from Google Sheets:', err);
+    return false;
   }
 }

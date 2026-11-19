@@ -19,6 +19,8 @@ import type { InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatCurrency, formatUnit } from '../../utils/formatters';
 import { useCategories } from '../../utils/categories';
+import { useSettings } from '../../context/SettingsContext';
+import { deleteItemFromGoogleSheets } from '../../utils/googleSheetsSync';
 import { ItemFormModal } from './ItemFormModal';
 import { QuickStockAdjustModal } from './QuickStockAdjustModal';
 import { CategoryManageModal } from './CategoryManageModal';
@@ -26,6 +28,7 @@ import { VendorPurchaseModal } from '../khata/VendorPurchaseModal';
 
 export const InventoryScreen: React.FC = () => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
   const { categories, getLabel } = useCategories();
   const items = useLiveQuery(() => db.items.toArray()) || [];
 
@@ -69,6 +72,9 @@ export const InventoryScreen: React.FC = () => {
     if (confirm(`क्या आप सचमुच "${item.nameHi || item.nameEn}" को हटाना चाहते हैं?`)) {
       if (item.id) {
         await db.items.delete(item.id);
+        if (settings.googleSheetsUrl) {
+          deleteItemFromGoogleSheets(settings.googleSheetsUrl, item, settings.googleSheetDocumentUrl);
+        }
       }
     }
   };

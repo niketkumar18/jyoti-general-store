@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, Building2, UserCheck, Shield, Phone, MapPin, Tag } from 'lucide-react';
 import type { Vendor } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
+import { syncVendorsToGoogleSheets } from '../../utils/googleSheetsSync';
 import { db } from '../../db';
 
 interface VendorFormModalProps {
@@ -18,6 +20,7 @@ export const VendorFormModal: React.FC<VendorFormModalProps> = ({
   onSave
 }) => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
 
   const [firmName, setFirmName] = useState('');
   const [name, setName] = useState('');
@@ -114,6 +117,11 @@ export const VendorFormModal: React.FC<VendorFormModalProps> = ({
         if (onSave) {
           onSave({ ...newVendor, id: newId as number });
         }
+      }
+
+      if (settings.googleSheetsUrl) {
+        syncVendorsToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+          .catch(e => console.error('Failed to sync vendor to Google Sheets:', e));
       }
 
       onClose();

@@ -21,6 +21,8 @@ import {
 import { db } from '../../db';
 import type { Customer, RiskLevel, Vendor } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useSettings } from '../../context/SettingsContext';
+import { deleteCustomerFromGoogleSheets } from '../../utils/googleSheetsSync';
 import { formatCurrency } from '../../utils/formatters';
 import { CreditBadge } from '../common/CreditBadge';
 import { CustomerLedgerModal } from './CustomerLedgerModal';
@@ -33,6 +35,7 @@ import { exportCustomerKhataToCsv } from '../../utils/excelExport';
 
 export const KhataScreen: React.FC = () => {
   const { language, t } = useLanguage();
+  const { settings } = useSettings();
   
   // Tab Switch: Customers Khata vs Vendors & Stock Khata
   const [activeTab, setActiveTab] = useState<'CUSTOMERS' | 'VENDORS'>('CUSTOMERS');
@@ -93,6 +96,9 @@ export const KhataScreen: React.FC = () => {
       try {
         await db.customers.delete(c.id);
         await db.ledger.where('customerId').equals(c.id).delete();
+        if (settings.googleSheetsUrl) {
+          deleteCustomerFromGoogleSheets(settings.googleSheetsUrl, c, settings.googleSheetDocumentUrl);
+        }
       } catch (err) {
         console.error('Failed to delete customer:', err);
         alert('ग्राहक हटाने में त्रुटि हुई');
