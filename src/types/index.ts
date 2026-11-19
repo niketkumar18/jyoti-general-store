@@ -35,8 +35,10 @@ export interface InventoryItem {
   lowStockThreshold: number;
   barcode?: string;
   imageUrl?: string;
-  bulkDiscountThreshold?: number; // e.g. 5 (यदि मात्रा इस सीमा या इससे ज्यादा हो)
-  bulkDiscountPercentage?: number; // e.g. 20 (20% छूट दर)
+  bulkDiscountThreshold?: number; // e.g. 30 (यदि मात्रा इस सीमा या इससे ज्यादा हो)
+  bulkDiscountPercentage?: number; // e.g. 10 (10% छूट दर)
+  bulkDiscountRate?: number; // e.g. 4.5 (यदि मात्रा >= threshold हो तो नया थोक रेट प्रति पीस/किग्रा)
+  isComplementary?: boolean; // उपहार / कॉम्प्लीमेंट्री उत्पाद टैग (Optional)
   createdAt: number;
   updatedAt: number;
 }
@@ -63,13 +65,15 @@ export interface CartItem {
   nameEn: string;
   nameHi: string;
   unit: UnitType;
-  quantity: number; // Can be fractional e.g. 0.25 for 250 gm
+  quantity: number; // Can be fractional e.g. 0.25 for 250 gm, 0.9 for 900 gm
   salePrice: number; // Base sale price (e.g. 20)
   costPrice?: number;
-  bulkDiscountThreshold?: number; // e.g. 5
-  bulkDiscountPercentage?: number; // e.g. 20
-  effectivePrice?: number; // Calculated price after bulk discount (e.g. 16)
+  bulkDiscountThreshold?: number; // e.g. 30
+  bulkDiscountPercentage?: number; // e.g. 10
+  bulkDiscountRate?: number; // e.g. 4.5
+  effectivePrice?: number; // Calculated price after bulk discount (e.g. 4.5 or 16)
   isBulkDiscountApplied?: boolean;
+  isComplementary?: boolean; // मुफ्त / कॉम्प्लीमेंट्री सामान (₹0)
   total: number;
 }
 
@@ -82,6 +86,8 @@ export interface InvoiceItem {
   unitPrice: number;
   originalPrice?: number;
   discountPercentage?: number;
+  bulkDiscountRate?: number;
+  isComplementary?: boolean;
   costPrice?: number;
   total: number;
 }

@@ -269,6 +269,59 @@ export function exportVendorKhataToCsv(
   }
 }
 
+export function exportComplementaryReportToCsv(
+  rows: Array<{
+    date: number;
+    invoiceNumber: string;
+    customerName: string;
+    itemName: string;
+    quantity: number;
+    unit: string;
+    costRate: number;
+    totalCost: number;
+  }>,
+  totals: {
+    totalQty: number;
+    totalCost: number;
+  }
+) {
+  const headers = [
+    'तारीख व समय (Date & Time)',
+    'बिल संख्या (Invoice #)',
+    'ग्राहक का नाम (Customer)',
+    'मुफ्त सामान (Item Name)',
+    'मात्रा (Quantity)',
+    'इकाई (Unit)',
+    'लागत दर (Cost Rate ₹)',
+    'दुकानदार की कुल लागत (Total Cost ₹)'
+  ];
+
+  const csvRows = rows.map((r) => [
+    `"${new Date(r.date).toLocaleString('hi-IN')}"`,
+    `"${r.invoiceNumber}"`,
+    `"${r.customerName}"`,
+    `"${r.itemName}"`,
+    r.quantity,
+    `"${r.unit}"`,
+    r.costRate,
+    r.totalCost
+  ]);
+
+  csvRows.push([
+    '"--- कुल कॉम्प्लिमेंट्री लागत जोड़ ---"',
+    '""',
+    '""',
+    '""',
+    totals.totalQty,
+    '""',
+    '""',
+    totals.totalCost
+  ]);
+
+  const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((r) => r.join(','))].join('\n');
+  downloadBlob(csvContent, `DEN_Complementary_Goods_Report_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+}
+
 function downloadBlob(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);

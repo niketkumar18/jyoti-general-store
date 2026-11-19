@@ -18,7 +18,8 @@ import {
   Layers,
   Building2,
   Scale,
-  Package
+  Package,
+  Gift
 } from 'lucide-react';
 import { db } from '../../db';
 import { useLanguage } from '../../context/LanguageContext';
@@ -28,7 +29,8 @@ import { useCategories } from '../../utils/categories';
 import { 
   exportDailyProfitToCsv, 
   exportMonthlyProfitToCsv, 
-  exportMonthlyReportToCsv 
+  exportMonthlyReportToCsv,
+  exportComplementaryReportToCsv 
 } from '../../utils/excelExport';
 
 const MONTH_NAMES_HI = [
@@ -41,7 +43,7 @@ const MONTH_NAMES_EN = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-type ReportTab = 'DAILY' | 'MONTHLY' | 'YEARLY';
+type ReportTab = 'DAILY' | 'MONTHLY' | 'YEARLY' | 'COMPLEMENTARY';
 
 export const ReportsScreen: React.FC = () => {
   const { language, t } = useLanguage();
@@ -106,6 +108,53 @@ export const ReportsScreen: React.FC = () => {
     }
     return 0;
   };
+
+  // ==========================================
+  // COMPLEMENTARY / FREE GOODS LEDGER DATA
+  // ==========================================
+  const complementaryData = useMemo(() => {
+    type CompRow = {
+      id: string;
+      invoiceNumber: string;
+      customerName: string;
+      itemName: string;
+      quantity: number;
+      unit: string;
+      costRate: number;
+      totalCost: number;
+      date: number;
+    };
+
+    const allRows: CompRow[] = [];
+    invoices.forEach((inv) => {
+      (inv.items || []).forEach((it, idx) => {
+        if (it.isComplementary) {
+          const unitCost = getItemCostPrice(it);
+          const lineCost = Number((unitCost * it.quantity).toFixed(2));
+          allRows.push({
+            id: `${inv.id}-${idx}`,
+            invoiceNumber: inv.invoiceNumber,
+            customerName: inv.customerName || 'नकद ग्राहक',
+            itemName: it.nameHi || it.nameEn,
+            quantity: it.quantity,
+            unit: it.unit,
+            costRate: unitCost,
+            totalCost: lineCost,
+            date: inv.createdAt
+          });
+        }
+      });
+    });
+
+    const totalAllTimeCost = allRows.reduce((s, r) => s + r.totalCost, 0);
+    const totalAllTimeQty = allRows.reduce((s, r) => s + r.quantity, 0);
+
+    return {
+      rows: allRows.sort((a, b) => b.date - a.date),
+      totalCost: totalAllTimeCost,
+      totalQty: totalAllTimeQty
+    };
+  }, [invoices, inventoryMap]);
 
   // ==========================================
   // 1. DAILY PROFIT DATA
@@ -395,6 +444,11 @@ export const ReportsScreen: React.FC = () => {
         monthlyData.dailyRows,
         monthlyData.totals
       );
+    } else if (activeTab === 'COMPLEMENTARY') {
+      exportComplementaryReportToCsv(complementaryData.rows, {
+        totalQty: complementaryData.totalQty,
+        totalCost: complementaryData.totalCost
+      });
     } else {
       exportMonthlyReportToCsv(selectedYear, yearlyData);
     }
@@ -430,7 +484,7 @@ export const ReportsScreen: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
           {/* 1. Customer Udhar (Receivable) */}
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
             <div className="flex items-center gap-1.5 text-rose-300">
@@ -496,7 +550,7 @@ export const ReportsScreen: React.FC = () => {
           </div>
 
           {/* 5. Total Sales */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 col-span-2 lg:col-span-1">
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
             <div className="flex items-center gap-1.5 text-emerald-300">
               <TrendingUp className="w-3.5 h-3.5" />
               <span className="text-[10px] font-black uppercase tracking-wider">
@@ -508,6 +562,22 @@ export const ReportsScreen: React.FC = () => {
             </p>
             <p className="text-[10px] text-slate-300 mt-0.5">
               दुकान से कुल काउंटर बिक्री
+            </p>
+          </div>
+
+          {/* 6. Total Complementary Goods Cost */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+            <div className="flex items-center gap-1.5 text-purple-300">
+              <Gift className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                मुफ्त उपहार लागत (Free)
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-black text-purple-200 mt-1">
+              {formatCurrency(complementaryData.totalCost)}
+            </p>
+            <p className="text-[10px] text-slate-300 mt-0.5">
+              {complementaryData.totalQty} यूनिट मुफ्त दिए गए
             </p>
           </div>
         </div>
@@ -540,13 +610,15 @@ export const ReportsScreen: React.FC = () => {
                   ? 'दैनिक रिपोर्ट डाउनलोड (Excel)'
                   : activeTab === 'MONTHLY'
                   ? 'माहवार रिपोर्ट डाउनलोड (Excel)'
+                  : activeTab === 'COMPLEMENTARY'
+                  ? 'मुफ्त सामान ऑडिट डाउनलोड (Excel)'
                   : 'वार्षिक ऑडिट डाउनलोड (Excel)'}
               </span>
             </button>
           </div>
         </div>
 
-        {/* 3 Main View Tabs */}
+        {/* Main View Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <div className="flex bg-slate-100 p-1 rounded-2xl gap-1 w-full lg:w-auto overflow-x-auto no-scrollbar">
             <button
@@ -583,6 +655,18 @@ export const ReportsScreen: React.FC = () => {
             >
               <BarChart3 className="w-4 h-4 text-emerald-600" />
               <span>{language === 'hi' ? '📊 वार्षिक ऑडिट (Yearly)' : '📊 Yearly Audit'}</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('COMPLEMENTARY')}
+              className={`flex-1 lg:flex-initial px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                activeTab === 'COMPLEMENTARY'
+                  ? 'bg-purple-700 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Gift className="w-4 h-4 text-purple-300" />
+              <span>{language === 'hi' ? '🎁 कॉम्प्लिमेंट्री (मुफ्त सामान)' : '🎁 Complementary'}</span>
             </button>
           </div>
 
@@ -1336,6 +1420,143 @@ export const ReportsScreen: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 4: COMPLEMENTARY / FREE GOODS LEDGER & AUDIT */}
+      {/* ======================================================== */}
+      {activeTab === 'COMPLEMENTARY' && (
+        <div className="space-y-4 sm:space-y-6">
+          {/* Complementary KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-purple-50 border border-purple-200 p-4 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-purple-700 uppercase tracking-wide">
+                कुल मुफ्त उपहार लागत (Total Cost)
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-purple-900 mt-1">
+                {formatCurrency(complementaryData.totalCost)}
+              </div>
+              <div className="text-[11px] text-purple-600 mt-1">
+                दुकानदार द्वारा मुफ्त सामान पर वहन की गई कुल लागत
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                कुल वितरित मात्रा (Total Quantity)
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                {complementaryData.totalQty}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                स्टॉक से कटी कुल उपहार यूनिट्स
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-xs">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+                कुल शामिल बिल (Total Invoices)
+              </span>
+              <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                {new Set(complementaryData.rows.map((r) => r.invoiceNumber)).size}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                जिन बिलों में कॉम्प्लिमेंट्री सामान दिया गया
+              </div>
+            </div>
+          </div>
+
+          {/* Complementary Ledger Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                  <Gift className="w-5 h-5 text-purple-600" />
+                  <span>मुफ्त सामान विवरण खाता (Complementary Ledger)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  लेजर व स्टॉक मिलान हेतु मुफ्त दिए गए सामानों की सूची
+                </p>
+              </div>
+            </div>
+
+            {complementaryData.rows.length === 0 ? (
+              <div className="p-8 text-center">
+                <Gift className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+                <p className="font-bold text-slate-600">अभी तक कोई कॉम्प्लिमेंट्री (मुफ्त) सामान नहीं दिया गया है।</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  बिलिंग करते समय "🎁 मुफ्त सामान" जोड़ें ताकि उसका हिसाब यहाँ दर्ज हो।
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-purple-900/5 text-slate-700 font-extrabold uppercase text-[11px] border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">तारीख व समय</th>
+                      <th className="p-3">बिल संख्या</th>
+                      <th className="p-3">ग्राहक का नाम</th>
+                      <th className="p-3">मुफ्त सामान</th>
+                      <th className="p-3 text-center">मात्रा</th>
+                      <th className="p-3 text-right">लागत दर (₹)</th>
+                      <th className="p-3 text-right">कुल लागत (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {complementaryData.rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-purple-50/50 transition-colors">
+                        <td className="p-3 text-slate-600 font-medium whitespace-nowrap">
+                          {new Date(row.date).toLocaleString('hi-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        <td className="p-3 font-mono font-bold text-slate-900">
+                          {row.invoiceNumber}
+                        </td>
+                        <td className="p-3 text-slate-800 font-semibold">
+                          {row.customerName}
+                        </td>
+                        <td className="p-3 font-bold text-slate-900 flex items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700 font-black">
+                            🎁 FREE
+                          </span>
+                          <span>{row.itemName}</span>
+                        </td>
+                        <td className="p-3 text-center font-bold text-slate-900 whitespace-nowrap">
+                          {row.quantity} {row.unit}
+                        </td>
+                        <td className="p-3 text-right text-slate-600 font-mono">
+                          {formatCurrency(row.costRate)}
+                        </td>
+                        <td className="p-3 text-right font-black text-purple-700 font-mono">
+                          {formatCurrency(row.totalCost)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 font-black border-t-2 border-slate-300">
+                    <tr>
+                      <td colSpan={4} className="p-3 text-right text-slate-700 font-bold">
+                        कुल कॉम्प्लिमेंट्री योग:
+                      </td>
+                      <td className="p-3 text-center text-slate-900">
+                        {complementaryData.totalQty}
+                      </td>
+                      <td className="p-3"></td>
+                      <td className="p-3 text-right text-purple-900 font-mono text-base font-black">
+                        {formatCurrency(complementaryData.totalCost)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { 
@@ -16,9 +17,11 @@ import {
   ShoppingBag,
   Minus,
   Plus,
-  Trash2
+  Trash2,
+  Gift,
+  Search
 } from 'lucide-react';
-import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings } from '../../types';
+import type { Customer, CartItem, PaymentMethod, Invoice, ShopSettings, InventoryItem } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatUnit, calculateRiskLevel } from '../../utils/formatters';
@@ -39,6 +42,8 @@ interface PaymentModalProps {
   onOpenCustomerSelect: () => void;
   onUpdatePrice?: (itemId: number, newPrice: number, updateCatalog?: boolean) => void;
   onUpdateQuantity?: (itemId: number, newQty: number) => void;
+  onToggleComplementary?: (itemId: number) => void;
+  onAddComplementaryItem?: (item: InventoryItem, qty?: number) => void;
   onRemoveItem?: (itemId: number) => void;
 }
 
@@ -55,10 +60,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onOpenCustomerSelect,
   onUpdatePrice,
   onUpdateQuantity,
+  onToggleComplementary,
+  onAddComplementaryItem,
   onRemoveItem
 }) => {
   const { language, t } = useLanguage();
   const { settings } = useSettings();
+
+  const inventoryItems = useLiveQuery(() => db.items.toArray()) || [];
+  const complementaryTaggedItems = inventoryItems.filter((i) => i.isComplementary);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [cashTendered, setCashTendered] = useState<number>(grandTotal);
@@ -70,9 +80,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   // Price & Quantity Editing state at final bill
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [tempPrice, setTempPrice] = useState<number | ''>('');
-  const [tempQty, setTempQty] = useState<number | ''>('');
+  const [tempQtyStr, setTempQtyStr] = useState<string>('');
   const [updateCatalogPermanently, setUpdateCatalogPermanently] = useState(false);
   const [showItemsSection, setShowItemsSection] = useState(true);
+
+  // Complementary Items selector
+  const [showComplementaryPicker, setShowComplementaryPicker] = useState(false);
+  const [compSearchQuery, setCompSearchQuery] = useState('');
 
   // Auto-sync cashTendered when grandTotal changes (e.g. after price/quantity edit)
   useEffect(() => {
@@ -89,13 +103,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const startEditingItem = (item: CartItem) => {
     setEditingItemId(item.itemId);
     setTempPrice(item.salePrice);
-    setTempQty(item.quantity);
+    setTempQtyStr(String(item.quantity));
     setUpdateCatalogPermanently(false);
   };
 
   const handleSaveItemEdit = (itemId: number) => {
-    if (typeof tempQty === 'number' && tempQty > 0 && onUpdateQuantity) {
-      onUpdateQuantity(itemId, tempQty);
+    const parsedQty = parseFloat(tempQtyStr);
+    if (!isNaN(parsedQty) && parsedQty > 0 && onUpdateQuantity) {
+      onUpdateQuantity(itemId, parsedQty);
     }
     if (typeof tempPrice === 'number' && tempPrice > 0 && onUpdatePrice) {
       onUpdatePrice(itemId, tempPrice, updateCatalogPermanently);
@@ -139,11 +154,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         nameHi: c.nameHi,
         unit: c.unit,
         quantity: c.quantity,
-        unitPrice: c.effectivePrice || c.salePrice,
+        unitPrice: c.isComplementary ? 0 : (c.effectivePrice || c.salePrice),
         originalPrice: c.salePrice,
-        discountPercentage: c.isBulkDiscountApplied ? c.bulkDiscountPercentage : undefined,
+        discountPercentage: c.isComplementary ? 100 : (c.isBulkDiscountApplied ? c.bulkDiscountPercentage : undefined),
+        bulkDiscountRate: c.bulkDiscountRate,
+        isComplementary: Boolean(c.isComplementary),
         costPrice: c.costPrice,
-        total: c.total
+        total: c.isComplementary ? 0 : c.total
       }));
 
       const newInvoice: Omit<Invoice, 'id'> = {
@@ -343,32 +360,62 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                       {/* Top Row: Name, Rate & Line Total */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
-                            {item.nameHi || item.nameEn}
-                          </h4>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 truncate">
+                              {item.nameHi || item.nameEn}
+                            </h4>
+                            {item.isComplementary && (
+                              <span className="text-[10px] font-black text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-300">
+                                🎁 मुफ्त (₹0)
+                              </span>
+                            )}
+                          </div>
+
                           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
                             <span>
-                              @{formatCurrency(item.salePrice)} / {formatUnit(item.unit, language)}
+                              {item.isComplementary ? (
+                                <span className="text-purple-700 font-extrabold">@₹0.00 / {formatUnit(item.unit, language)}</span>
+                              ) : (
+                                <>@{formatCurrency(item.effectivePrice || item.salePrice)} / {formatUnit(item.unit, language)}</>
+                              )}
                             </span>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (isEditing) {
-                                  setEditingItemId(null);
-                                } else {
-                                  startEditingItem(item);
-                                }
-                              }}
-                              className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
-                                isEditing
-                                  ? 'bg-amber-200 text-amber-900 border-amber-300'
-                                  : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
-                              }`}
-                            >
-                              <Edit2 className="w-3 h-3" />
-                              <span>{isEditing ? 'बंद करें' : 'रेट / मात्रा बदलें'}</span>
-                            </button>
+                            {!item.isComplementary && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isEditing) {
+                                    setEditingItemId(null);
+                                  } else {
+                                    startEditingItem(item);
+                                  }
+                                }}
+                                className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg border cursor-pointer transition-all ${
+                                  isEditing
+                                    ? 'bg-amber-200 text-amber-900 border-amber-300'
+                                    : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+                                }`}
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                <span>{isEditing ? 'बंद करें' : 'रेट / मात्रा बदलें'}</span>
+                              </button>
+                            )}
+
+                            {onToggleComplementary && (
+                              <button
+                                type="button"
+                                onClick={() => onToggleComplementary(item.itemId)}
+                                className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md border transition-all cursor-pointer ${
+                                  item.isComplementary
+                                    ? 'bg-purple-200 text-purple-950 border-purple-400 font-black'
+                                    : 'bg-slate-100 hover:bg-purple-50 text-slate-600 hover:text-purple-700 border-slate-200'
+                                }`}
+                                title="कॉम्प्लिमेंट्री टॉगल करें"
+                              >
+                                <Gift className="w-2.5 h-2.5" />
+                                <span>{item.isComplementary ? 'मुफ्त उपहार' : 'मुफ्त बनाएं'}</span>
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -376,7 +423,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         <div className="flex items-center gap-1.5 shrink-0">
                           <div className="text-right">
                             <span className="font-black text-sm text-slate-900 block">
-                              {formatCurrency(item.total)}
+                              {item.isComplementary ? '₹0.00' : formatCurrency(item.total)}
                             </span>
                           </div>
                           {onRemoveItem && (
@@ -404,14 +451,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const next = Math.max(0, Number((item.quantity - step).toFixed(2)));
+                                  const next = Math.max(0, Number((item.quantity - step).toFixed(3)));
                                   if (next === 0 && onRemoveItem) {
                                     onRemoveItem(item.itemId);
                                   } else {
                                     onUpdateQuantity(item.itemId, next);
                                   }
                                 }}
-                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs font-bold"
+                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-rose-50 hover:text-rose-600 shadow-2xs font-bold cursor-pointer"
                                 title="मात्रा कम करें"
                               >
                                 <Minus className="w-3 h-3" />
@@ -424,10 +471,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const next = Number((item.quantity + step).toFixed(2));
+                                  const next = Number((item.quantity + step).toFixed(3));
                                   onUpdateQuantity(item.itemId, next);
                                 }}
-                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-2xs font-bold"
+                                className="w-6 h-6 flex items-center justify-center rounded bg-white text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 shadow-2xs font-bold cursor-pointer"
                                 title="मात्रा बढ़ाएं"
                               >
                                 <Plus className="w-3 h-3" />
@@ -439,7 +486,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                         /* Expanded Full-Width Edit Panel */
                         <div className="mt-2 pt-2 border-t border-amber-200/80 space-y-2 animate-in fade-in">
                           <div className="grid grid-cols-2 gap-2">
-                            {/* Quantity Input */}
+                            {/* Quantity Input (Supports 0.900 cleanly!) */}
                             <div>
                               <label className="block text-[11px] font-bold text-slate-700 mb-0.5">
                                 मात्रा ({formatUnit(item.unit, language)}):
@@ -448,34 +495,48 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const current = typeof tempQty === 'number' ? tempQty : item.quantity;
-                                    const next = Math.max(step, Number((current - step).toFixed(2)));
-                                    setTempQty(next);
+                                    const current = parseFloat(tempQtyStr) || item.quantity;
+                                    const next = Math.max(step, Number((current - step).toFixed(3)));
+                                    setTempQtyStr(String(next));
                                   }}
-                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-rose-50 text-slate-700 font-bold"
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-rose-50 text-slate-700 font-bold cursor-pointer"
                                 >
                                   <Minus className="w-3 h-3" />
                                 </button>
                                 <input
-                                  type="number"
-                                  step={isWeight ? '0.05' : '1'}
-                                  min="0"
-                                  value={tempQty}
-                                  onChange={(e) => setTempQty(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={tempQtyStr}
+                                  onChange={(e) => setTempQtyStr(e.target.value)}
+                                  placeholder="उदा. 0.900"
                                   className="w-full text-center font-black text-xs text-slate-900 focus:outline-none"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    const current = typeof tempQty === 'number' ? tempQty : item.quantity;
-                                    const next = Number((current + step).toFixed(2));
-                                    setTempQty(next);
+                                    const current = parseFloat(tempQtyStr) || item.quantity;
+                                    const next = Number((current + step).toFixed(3));
+                                    setTempQtyStr(String(next));
                                   }}
-                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-emerald-50 text-slate-700 font-bold"
+                                  className="w-5 h-5 flex items-center justify-center rounded bg-slate-100 hover:bg-emerald-50 text-slate-700 font-bold cursor-pointer"
                                 >
                                   <Plus className="w-3 h-3" />
                                 </button>
                               </div>
+                              {isWeight && (
+                                <div className="flex gap-1 mt-1 justify-center">
+                                  {[0.25, 0.5, 0.9, 1].map((val) => (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => setTempQtyStr(String(val))}
+                                      className="text-[9px] px-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-bold cursor-pointer"
+                                    >
+                                      {val >= 1 ? `${val}kg` : `${val * 1000}g`}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
 
                             {/* Rate Input */}
@@ -534,6 +595,73 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 })}
               </div>
             )}
+
+            {/* Complementary / Free Gifts Section in Final Billing */}
+            <div className="p-2.5 bg-purple-50/70 border-t border-purple-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-black text-purple-950">
+                  <Gift className="w-4 h-4 text-purple-600" />
+                  <span>कॉम्प्लिमेंट्री उपहार (Free Complementary Items):</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowComplementaryPicker(!showComplementaryPicker)}
+                  className="text-[11px] font-black text-purple-800 bg-purple-100 hover:bg-purple-200 px-2 py-0.5 rounded-lg border border-purple-300 transition-colors cursor-pointer"
+                >
+                  {showComplementaryPicker ? 'छुपाएं ▲' : '+ मुफ्त उपहार जोड़ें ▼'}
+                </button>
+              </div>
+
+              {showComplementaryPicker && (
+                <div className="bg-white border border-purple-200 rounded-xl p-2.5 space-y-2 animate-in fade-in">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      value={compSearchQuery}
+                      onChange={(e) => setCompSearchQuery(e.target.value)}
+                      placeholder="सामान खोजें (उदा. धनिया, टॉफी, बिस्कुट)..."
+                      className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+
+                  <div className="max-h-36 overflow-y-auto divide-y divide-slate-100 text-xs">
+                    {(compSearchQuery
+                      ? inventoryItems.filter(
+                          (i) =>
+                            (i.nameHi && i.nameHi.toLowerCase().includes(compSearchQuery.toLowerCase())) ||
+                            (i.nameEn && i.nameEn.toLowerCase().includes(compSearchQuery.toLowerCase()))
+                        )
+                      : complementaryTaggedItems.length > 0
+                      ? complementaryTaggedItems
+                      : inventoryItems.slice(0, 10)
+                    ).map((compItem) => (
+                      <div key={compItem.id} className="py-1.5 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-800 block truncate">
+                            {compItem.nameHi || compItem.nameEn}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            स्टॉक: {compItem.stockQty} {compItem.unit} • लागत: ₹{compItem.costPrice || 0}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddComplementaryItem?.(compItem, 1);
+                            setShowComplementaryPicker(false);
+                            setCompSearchQuery('');
+                          }}
+                          className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-black text-[11px] rounded-lg shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                        >
+                          + मुफ्त जोड़ें (₹0)
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="text-xs font-bold text-slate-700">

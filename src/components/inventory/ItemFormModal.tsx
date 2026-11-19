@@ -36,6 +36,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
   const [enableBulkRule, setEnableBulkRule] = useState(false);
   const [bulkThreshold, setBulkThreshold] = useState<number | ''>('');
   const [bulkPercentage, setBulkPercentage] = useState<number | ''>('');
+  const [bulkRate, setBulkRate] = useState<number | ''>('');
+  const [isComplementary, setIsComplementary] = useState(false);
 
   // Category management modals & inline quick add
   const [showManageCategories, setShowManageCategories] = useState(false);
@@ -56,7 +58,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setBarcode(itemToEdit.barcode || '');
       setBulkThreshold(itemToEdit.bulkDiscountThreshold ?? '');
       setBulkPercentage(itemToEdit.bulkDiscountPercentage ?? '');
-      setEnableBulkRule(Boolean(itemToEdit.bulkDiscountThreshold && itemToEdit.bulkDiscountPercentage));
+      setBulkRate(itemToEdit.bulkDiscountRate ?? '');
+      setEnableBulkRule(Boolean(itemToEdit.bulkDiscountThreshold && (itemToEdit.bulkDiscountRate || itemToEdit.bulkDiscountPercentage)));
+      setIsComplementary(Boolean(itemToEdit.isComplementary));
     } else {
       setNameEn('');
       setNameHi('');
@@ -69,12 +73,30 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setBarcode('');
       setBulkThreshold('');
       setBulkPercentage('');
+      setBulkRate('');
       setEnableBulkRule(false);
+      setIsComplementary(false);
     }
     setShowInlineAddCategory(false);
     setNewCatNameHi('');
     setNewCatNameEn('');
   }, [itemToEdit, isOpen]);
+
+  const handleBulkRateChange = (val: number | '') => {
+    setBulkRate(val);
+    if (typeof val === 'number' && salePrice > 0) {
+      const pct = Math.max(0, Math.min(99, Number((((salePrice - val) / salePrice) * 100).toFixed(1))));
+      setBulkPercentage(pct);
+    }
+  };
+
+  const handleBulkPercentageChange = (val: number | '') => {
+    setBulkPercentage(val);
+    if (typeof val === 'number' && salePrice > 0) {
+      const rate = Number((salePrice * (1 - val / 100)).toFixed(2));
+      setBulkRate(rate);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -106,6 +128,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
 
     const thresholdVal = enableBulkRule && typeof bulkThreshold === 'number' && bulkThreshold > 1 ? bulkThreshold : undefined;
     const percentageVal = enableBulkRule && typeof bulkPercentage === 'number' && bulkPercentage > 0 ? bulkPercentage : undefined;
+    const bulkRateVal = enableBulkRule && typeof bulkRate === 'number' && bulkRate > 0 ? bulkRate : undefined;
 
     const payload: Omit<InventoryItem, 'id'> = {
       nameEn: nameEn.trim() || nameHi.trim(),
@@ -119,6 +142,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       barcode: barcode.trim() || undefined,
       bulkDiscountThreshold: thresholdVal,
       bulkDiscountPercentage: percentageVal,
+      bulkDiscountRate: bulkRateVal,
+      isComplementary,
       createdAt: itemToEdit?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -369,12 +394,13 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
               </div>
 
               <p className="text-[11px] text-amber-800">
-                यदि ग्राहक तय मात्रा या उससे अधिक खरीदे, तो दर में स्वतः प्रतिशत छूट लागू हो जाएगी। (जैसे 1 पर ₹20, लेकिन 5 पर 20% छूट = ₹16/पीस)
+                यदि ग्राहक तय मात्रा या उससे अधिक खरीदे, तो सामान्य रेट के बजाय नया स्पेशल थोक रेट लागू हो जाएगा। (उदा. 1 पीस पर ₹5, लेकिन 30 पीस पर नया रेट ₹4.5/पीस)
               </p>
 
               {enableBulkRule && (
                 <div className="space-y-3 pt-1 border-t border-amber-200/60 animate-in fade-in">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Threshold Qty */}
                     <div>
                       <label className="block text-[11px] font-bold text-amber-950 mb-1">
                         न्यूनतम मात्रा सीमा (Threshold Qty) *
@@ -385,60 +411,89 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                         value={bulkThreshold}
                         onChange={(e) =>
                           setBulkThreshold(
-                            e.target.value === '' ? '' : Math.max(2, parseInt(e.target.value) || 2)
+                            e.target.value === '' ? '' : Math.max(2, parseFloat(e.target.value) || 2)
                           )
                         }
-                        placeholder="उदा. 5"
+                        placeholder="उदा. 30"
                         className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                       />
                       <span className="text-[10px] text-amber-700 mt-0.5 block">
-                        उदा. 5 (5 या अधिक लेने पर)
+                        उदा. 30 (30 या अधिक लेने पर)
                       </span>
                     </div>
 
+                    {/* Special Bulk Rate (₹) */}
                     <div>
                       <label className="block text-[11px] font-bold text-amber-950 mb-1">
-                        छूट प्रतिशत (Discount %) *
+                        नया थोक रेट (Special Rate ₹) *
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">₹</span>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          value={bulkRate}
+                          onChange={(e) =>
+                            handleBulkRateChange(
+                              e.target.value === '' ? '' : parseFloat(e.target.value) || ''
+                            )
+                          }
+                          placeholder={salePrice > 0 ? `उदा. ${(salePrice * 0.9).toFixed(1)}` : 'उदा. 4.5'}
+                          className="w-full pl-6 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-black text-slate-900 focus:ring-2 focus:ring-amber-500"
+                        />
+                      </div>
+                      <span className="text-[10px] text-amber-700 mt-0.5 block">
+                        प्रति {unit} नया स्पेशल रेट
+                      </span>
+                    </div>
+
+                    {/* Discount Percentage */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-amber-950 mb-1">
+                        छूट प्रतिशत (Discount %)
                       </label>
                       <div className="relative">
                         <input
                           type="number"
                           min="1"
                           max="99"
+                          step="0.5"
                           value={bulkPercentage}
                           onChange={(e) =>
-                            setBulkPercentage(
+                            handleBulkPercentageChange(
                               e.target.value === ''
                                 ? ''
                                 : Math.min(99, Math.max(1, parseFloat(e.target.value) || 0))
                             )
                           }
-                          placeholder="उदा. 20"
+                          placeholder="उदा. 10"
                           className="w-full pr-8 pl-3 py-2 bg-white border border-amber-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
                         />
                         <span className="absolute right-3 top-2 text-slate-500 text-sm font-bold">%</span>
                       </div>
                       <span className="text-[10px] text-amber-700 mt-0.5 block">
-                        उदा. 20% कम
+                        स्वतः गणना या मैन्युअल
                       </span>
                     </div>
                   </div>
 
                   {/* Preset Quick Chips */}
-                  <div className="flex flex-wrap gap-1.5 pt-1">
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     <span className="text-[10px] font-semibold text-amber-900 py-0.5">त्वरित विकल्प:</span>
                     {[
-                      { qty: 5, pct: 10, label: '5+ पर 10%' },
-                      { qty: 5, pct: 20, label: '5+ पर 20%' },
-                      { qty: 10, pct: 15, label: '10+ पर 15%' },
-                      { qty: 12, pct: 10, label: '12+ पर 10%' }
+                      { qty: 5, pct: 10, label: '5+ पर 10% छूट' },
+                      { qty: 10, pct: 15, label: '10+ पर 15% छूट' },
+                      { qty: 20, pct: 10, label: '20+ पर 10% छूट' },
+                      { qty: 30, pct: 10, label: '30+ पर 10% छूट' },
+                      { qty: 50, pct: 20, label: '50+ पर 20% छूट' }
                     ].map((p, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => {
                           setBulkThreshold(p.qty);
-                          setBulkPercentage(p.pct);
+                          handleBulkPercentageChange(p.pct);
                         }}
                         className="text-[10px] font-bold px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-md border border-amber-300 transition-colors cursor-pointer"
                       >
@@ -448,7 +503,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   </div>
 
                   {/* Dynamic Example Preview */}
-                  {salePrice > 0 && Number(bulkThreshold) > 1 && Number(bulkPercentage) > 0 && (
+                  {salePrice > 0 && Number(bulkThreshold) > 1 && (Number(bulkRate) > 0 || Number(bulkPercentage) > 0) && (
                     <div className="bg-white rounded-xl p-2.5 border border-amber-300/80 text-xs text-amber-950 font-medium space-y-1">
                       <div className="font-bold text-amber-900 flex items-center gap-1">
                         <Sparkles className="w-3.5 h-3.5 text-amber-600" />
@@ -457,12 +512,39 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                       <p className="text-[11px] leading-relaxed">
                         • 1 से {Number(bulkThreshold) - 1} {unit} तक: <strong>₹{salePrice}</strong> प्रति {unit} (सामान्य दर)
                         <br />
-                        • <strong>{bulkThreshold} या अधिक {unit}</strong> पर: <strong>₹{(salePrice * (1 - Number(bulkPercentage) / 100)).toFixed(2)}</strong> प्रति {unit} ({bulkPercentage}% छूट! बचत: ₹{(salePrice * (Number(bulkPercentage) / 100)).toFixed(2)}/{unit})
+                        • <strong>{bulkThreshold} या अधिक {unit}</strong> पर: <strong>₹{typeof bulkRate === 'number' && bulkRate > 0 ? bulkRate : (salePrice * (1 - Number(bulkPercentage) / 100)).toFixed(2)}</strong> प्रति {unit} (बचत: ₹{(salePrice - (typeof bulkRate === 'number' && bulkRate > 0 ? bulkRate : salePrice * (1 - Number(bulkPercentage) / 100))).toFixed(2)}/{unit}, {bulkPercentage ? `${bulkPercentage}% छूट` : ''})
                       </p>
                     </div>
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Complementary / Free Gift Tag (Optional) */}
+            <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🎁</span>
+                  <div>
+                    <span className="text-xs sm:text-sm font-black text-purple-950 block">
+                      कॉम्प्लिमेंट्री उत्पाद टैग (Complementary / Free Gift Item)
+                    </span>
+                    <span className="text-[10px] text-purple-700 font-semibold">वैकल्पिक (Optional)</span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isComplementary}
+                    onChange={(e) => setIsComplementary(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                </label>
+              </div>
+              <p className="text-[11px] text-purple-900 leading-snug font-medium">
+                इस उत्पाद को कॉम्प्लिमेंट्री मार्क करने पर यह अंतिम बिलिंग के समय मुफ्त उपहार सूची में दिखाई देगा। बिल में इसका मूल्य ₹0 रहेगा, लेकिन स्टॉक से इसकी मात्रा घटेगी और रिपोर्ट में इसका हिसाब अलग से दिखेगा।
+              </p>
             </div>
 
             {/* Stock Quantity & Low Stock Threshold */}

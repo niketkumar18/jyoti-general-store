@@ -42,10 +42,13 @@ export async function generateInvoicePdf(
         (it, idx) => `
         <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
           <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: #64748b;">${idx + 1}</td>
-          <td style="padding: 6px; border-right: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${it.nameHi || it.nameEn}</td>
+          <td style="padding: 6px; border-right: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">
+            ${it.nameHi || it.nameEn}
+            ${it.isComplementary ? '<span style="font-size: 9px; font-weight: 800; color: #6b21a8; background: #f3e8ff; padding: 1px 4px; border-radius: 2px; margin-left: 4px;">[मुफ्त/Free]</span>' : ''}
+          </td>
           <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: #334155;">${it.quantity} ${it.unit}</td>
-          <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: right; color: #334155;">₹${Number(it.unitPrice).toFixed(2)}</td>
-          <td style="padding: 6px; text-align: right; font-weight: 800; color: #0f172a;">₹${Number(it.total).toFixed(2)}</td>
+          <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: right; color: #334155;">${it.isComplementary ? '₹0.00' : '₹' + Number(it.unitPrice).toFixed(2)}</td>
+          <td style="padding: 6px; text-align: right; font-weight: 800; color: #0f172a;">${it.isComplementary ? '₹0.00' : '₹' + Number(it.total).toFixed(2)}</td>
         </tr>
       `
       )
@@ -184,10 +187,13 @@ export async function generateInvoicePdf(
   try {
     // 3. Render HTML to Canvas with high clarity
     const canvas = await html2canvas(elementToCapture, {
-      scale: 2.5, // 2.5x retina clarity for ultra-sharp text
+      scale: 2.2, // 2.2x retina clarity for ultra-sharp text
       useCORS: true,
       backgroundColor: '#FFFFFF',
-      logging: false
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 850
     });
 
     // 4. Calculate proper PDF height based on A4 aspect ratio

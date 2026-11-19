@@ -36,6 +36,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { VendorPurchaseModal } from '../khata/VendorPurchaseModal';
 import { ReceivePaymentModal } from '../khata/ReceivePaymentModal';
+import { CalculatorModal } from '../common/CalculatorModal';
 
 interface DashboardScreenProps {
   onNavigate: (tab: ActiveTab) => void;
@@ -48,6 +49,7 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
   // Modals state
   const [isVendorPurchaseModalOpen, setIsVendorPurchaseModalOpen] = useState(false);
   const [isReceivePaymentOpen, setIsReceivePaymentOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [selectedCustomerForReceive, setSelectedCustomerForReceive] = useState<Customer | null>(null);
   const [showQuickActionMenu, setShowQuickActionMenu] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
@@ -213,9 +215,9 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
         {/* Quick App Icons (Calculator, Gift, Desktop View) */}
         <div className="flex items-center gap-3 text-indigo-900">
           <button
-            onClick={() => onNavigate('pos')}
-            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-700 transition-colors"
-            title="कैलकुलेटर / बिलिंग"
+            onClick={() => setIsCalculatorOpen(true)}
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+            title="किराना कैलकुलेटर (Calculator)"
           >
             <Calculator className="w-5 h-5 text-indigo-700" />
           </button>
@@ -602,6 +604,12 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
           setIsReceivePaymentOpen(false);
           setSelectedCustomerForReceive(null);
         }}
+      />
+
+      {/* Submodal: Actual Interactive Calculator */}
+      <CalculatorModal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
       />
     </div>
   );

@@ -56,7 +56,10 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
   // Purchase Details
   const [quantity, setQuantity] = useState<number | ''>(10);
   const [unit, setUnit] = useState<UnitType>('KG');
+  const [ratePerUnit, setRatePerUnit] = useState<number | ''>(50);
   const [totalCost, setTotalCost] = useState<number | ''>(500);
+  const [newSellingPrice, setNewSellingPrice] = useState<number | ''>('');
+  const [updateMainGridPrices, setUpdateMainGridPrices] = useState<boolean>(true);
   const [paidAmount, setPaidAmount] = useState<number | ''>(200);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'UPI' | 'BANK'>('CASH');
   const [billNumber, setBillNumber] = useState('');
@@ -96,12 +99,19 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
     }
   }, [initialVendorId, vendors]);
 
-  // When an existing item is selected, update unit automatically
+  // When an existing item is selected, update unit, rate and selling price automatically
   useEffect(() => {
     if (typeof selectedItemId === 'number') {
       const matched = items.find((i) => i.id === selectedItemId);
       if (matched) {
         setUnit(matched.unit);
+        if (matched.costPrice) {
+          setRatePerUnit(matched.costPrice);
+          if (typeof quantity === 'number' && quantity > 0) {
+            setTotalCost(Number((quantity * matched.costPrice).toFixed(2)));
+          }
+        }
+        setNewSellingPrice(matched.salePrice);
       }
     }
   }, [selectedItemId, items]);
@@ -121,6 +131,27 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
   const numPaid = typeof paidAmount === 'number' && paidAmount >= 0 ? paidAmount : 0;
   const calculatedDue = Math.max(0, numTotalCost - numPaid);
   const calculatedUnitCost = numQty > 0 ? Number((numTotalCost / numQty).toFixed(2)) : 0;
+
+  const handleQuantityChange = (val: number | '') => {
+    setQuantity(val);
+    if (typeof val === 'number' && typeof ratePerUnit === 'number' && ratePerUnit > 0) {
+      setTotalCost(Number((val * ratePerUnit).toFixed(2)));
+    }
+  };
+
+  const handleRateChange = (val: number | '') => {
+    setRatePerUnit(val);
+    if (typeof val === 'number' && typeof quantity === 'number' && quantity > 0) {
+      setTotalCost(Number((quantity * val).toFixed(2)));
+    }
+  };
+
+  const handleTotalCostChange = (val: number | '') => {
+    setTotalCost(val);
+    if (typeof val === 'number' && typeof quantity === 'number' && quantity > 0) {
+      setRatePerUnit(Number((val / quantity).toFixed(2)));
+    }
+  };
 
   // Quick Add Vendor inline
   const handleQuickAddVendorSubmit = async (e: React.FormEvent) => {
@@ -179,13 +210,14 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
           setIsSubmitting(false);
           return;
         }
+        const effectiveCost = typeof ratePerUnit === 'number' && ratePerUnit > 0 ? ratePerUnit : calculatedUnitCost;
         const createdItemId = await db.items.add({
           nameHi: customItemName.trim(),
           nameEn: customItemName.trim(),
           category: customCategory,
           unit: unit,
-          salePrice: Number(customSalePrice) || Math.round(calculatedUnitCost * 1.25),
-          costPrice: calculatedUnitCost,
+          salePrice: Number(customSalePrice) || Math.round(effectiveCost * 1.25),
+          costPrice: effectiveCost,
           stockQty: numQty,
           lowStockThreshold: 5,
           createdAt: Date.now(),
@@ -197,11 +229,17 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
         finalItemId = currentItem.id;
         finalItemName = currentItem.nameHi || currentItem.nameEn;
         
-        // Auto-increment existing item stock!
+        // Auto-increment existing item stock & update catalog prices
         const newStock = Number((currentItem.stockQty + numQty).toFixed(2));
+        const effectiveCost = typeof ratePerUnit === 'number' && ratePerUnit > 0 ? ratePerUnit : (calculatedUnitCost > 0 ? calculatedUnitCost : currentItem.costPrice);
+        const effectiveSale = (updateMainGridPrices && typeof newSellingPrice === 'number' && newSellingPrice > 0)
+          ? newSellingPrice
+          : currentItem.salePrice;
+
         await db.items.update(currentItem.id, {
           stockQty: newStock,
-          costPrice: calculatedUnitCost > 0 ? calculatedUnitCost : currentItem.costPrice,
+          costPrice: effectiveCost,
+          salePrice: effectiveSale,
           updatedAt: Date.now()
         });
       }
@@ -449,10 +487,10 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                 <input
                   type="number"
                   step="0.05"
-                  min="0.1"
+                  min="0.01"
                   required
                   value={quantity}
-                  onChange={(e) => setQuantity(e.target.value ? parseFloat(e.target.value) : '')}
+                  onChange={(e) => handleQuantityChange(e.target.value ? parseFloat(e.target.value) : '')}
                   placeholder="उदा. 10"
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-base font-black text-slate-900 focus:ring-2 focus:ring-emerald-500"
                 />
@@ -488,11 +526,37 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
               </div>
             )}
 
-            {/* 4. Total Cost & Paid Amount */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* 4. Rate per Unit & Total Purchase Amount */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-50/60 border border-indigo-200/80 rounded-2xl">
+              {/* Rate per Unit (Rate per kg/pc) */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  कुल खरीद बिल राशि (₹) *
+                <label className="block text-xs font-black text-indigo-950 mb-1">
+                  खरीद दर प्रति {unit} (Rate per {unit}) (₹) *
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-sm font-bold text-indigo-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    required
+                    value={ratePerUnit}
+                    onChange={(e) => handleRateChange(e.target.value ? parseFloat(e.target.value) : '')}
+                    placeholder="उदा. 120"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-indigo-300 rounded-xl text-base font-black text-indigo-950 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                  />
+                </div>
+                {currentItem && (
+                  <p className="text-[10px] text-indigo-700 font-semibold mt-1">
+                    पिछली खरीद दर: <strong>₹{currentItem.costPrice || 0} / {unit}</strong>
+                  </p>
+                )}
+              </div>
+
+              {/* Total Purchase Bill Amount (Auto-Calculated) */}
+              <div>
+                <label className="block text-xs font-black text-indigo-950 mb-1">
+                  कुल खरीद बिल राशि (Total Cost) (₹) *
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
@@ -502,21 +566,60 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                     step="1"
                     required
                     value={totalCost}
-                    onChange={(e) => setTotalCost(e.target.value ? parseFloat(e.target.value) : '')}
-                    placeholder="उदा. 500"
-                    className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-base font-black text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                    onChange={(e) => handleTotalCostChange(e.target.value ? parseFloat(e.target.value) : '')}
+                    placeholder="उदा. 1200"
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-slate-300 rounded-xl text-base font-black text-slate-900 focus:ring-2 focus:ring-indigo-500 shadow-2xs"
                   />
                 </div>
-                {calculatedUnitCost > 0 && (
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    खरीद दर: <strong>{formatCurrency(calculatedUnitCost)} / {unit}</strong>
-                  </p>
-                )}
+                <p className="text-[10px] text-slate-500 font-medium mt-1">
+                  मात्रा × दर = {numQty} × ₹{typeof ratePerUnit === 'number' ? ratePerUnit : 0} = ₹{numTotalCost}
+                </p>
               </div>
+            </div>
 
+            {/* 5. Update Main POS Grid Rates (Catalog Selling Price) */}
+            {currentItem && (
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-xs font-extrabold text-amber-950 block">
+                      दुकान में बिक्री रेट (Customer Sale Price in Grid):
+                    </span>
+                    <span className="text-[10px] text-amber-800">
+                      वर्तमान बिक्री रेट: <strong>₹{currentItem.salePrice} / {unit}</strong>
+                    </span>
+                  </div>
+                  <div className="relative w-36">
+                    <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      value={newSellingPrice}
+                      onChange={(e) => setNewSellingPrice(e.target.value ? parseFloat(e.target.value) : '')}
+                      placeholder={String(currentItem.salePrice)}
+                      className="w-full pl-6 pr-2 py-1.5 bg-white border border-amber-300 rounded-xl text-sm font-black text-slate-900 focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] font-bold text-amber-900 bg-white/80 p-2 rounded-xl border border-amber-200">
+                  <input
+                    type="checkbox"
+                    checked={updateMainGridPrices}
+                    onChange={(e) => setUpdateMainGridPrices(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                  <span>☑️ मुख्य ग्रिड (कैटलॉग) में नई खरीद दर (₹{typeof ratePerUnit === 'number' ? ratePerUnit : 0}) और बिक्री रेट तुरंत अपडेट करें</span>
+                </label>
+              </div>
+            )}
+
+            {/* 6. Paid Amount */}
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  आज दिया गया नकद/भुगतान (₹)
+                  आज सप्लायर को दिया गया नकद/भुगतान (₹)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
@@ -534,16 +637,16 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setPaidAmount(numTotalCost)}
-                    className="text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-1.5 py-0.5 rounded font-bold"
+                    className="text-[10px] text-emerald-800 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded font-bold cursor-pointer"
                   >
-                    पूरा नकद
+                    पूरा नकद (₹{numTotalCost})
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaidAmount(0)}
-                    className="text-[10px] text-rose-800 bg-rose-100 hover:bg-rose-200 px-1.5 py-0.5 rounded font-bold"
+                    className="text-[10px] text-rose-800 bg-rose-100 hover:bg-rose-200 px-2 py-0.5 rounded font-bold cursor-pointer"
                   >
-                    पूरा उधार (₹0)
+                    पूरा उधार (देना बाकी: ₹{numTotalCost})
                   </button>
                 </div>
               </div>

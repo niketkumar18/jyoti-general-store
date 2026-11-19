@@ -52,12 +52,14 @@ export const PosScreen: React.FC = () => {
       const existingIndex = prev.findIndex((c) => c.itemId === item.id);
       if (existingIndex > -1) {
         const copy = [...prev];
-        const newQty = Number((copy[existingIndex].quantity + qty).toFixed(2));
+        const newQty = Number((copy[existingIndex].quantity + qty).toFixed(3));
         const pricing = calculateItemPricing(
           copy[existingIndex].salePrice,
           newQty,
           copy[existingIndex].bulkDiscountThreshold,
-          copy[existingIndex].bulkDiscountPercentage
+          copy[existingIndex].bulkDiscountPercentage,
+          copy[existingIndex].bulkDiscountRate,
+          copy[existingIndex].isComplementary
         );
         copy[existingIndex] = {
           ...copy[existingIndex],
@@ -72,7 +74,9 @@ export const PosScreen: React.FC = () => {
           item.salePrice,
           qty,
           item.bulkDiscountThreshold,
-          item.bulkDiscountPercentage
+          item.bulkDiscountPercentage,
+          item.bulkDiscountRate,
+          item.isComplementary
         );
         return [
           ...prev,
@@ -86,6 +90,8 @@ export const PosScreen: React.FC = () => {
             costPrice: item.costPrice,
             bulkDiscountThreshold: item.bulkDiscountThreshold,
             bulkDiscountPercentage: item.bulkDiscountPercentage,
+            bulkDiscountRate: item.bulkDiscountRate,
+            isComplementary: Boolean(item.isComplementary),
             effectivePrice: pricing.effectiveUnitPrice,
             isBulkDiscountApplied: pricing.isBulkApplied,
             total: pricing.total
@@ -103,7 +109,9 @@ export const PosScreen: React.FC = () => {
             item.salePrice,
             newQty,
             item.bulkDiscountThreshold,
-            item.bulkDiscountPercentage
+            item.bulkDiscountPercentage,
+            item.bulkDiscountRate,
+            item.isComplementary
           );
           return {
             ...item,
@@ -116,6 +124,67 @@ export const PosScreen: React.FC = () => {
         return item;
       })
     );
+  };
+
+  const handleToggleComplementary = (itemId: number) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.itemId === itemId) {
+          const nextComp = !item.isComplementary;
+          const pricing = calculateItemPricing(
+            item.salePrice,
+            item.quantity,
+            item.bulkDiscountThreshold,
+            item.bulkDiscountPercentage,
+            item.bulkDiscountRate,
+            nextComp
+          );
+          return {
+            ...item,
+            isComplementary: nextComp,
+            effectivePrice: pricing.effectiveUnitPrice,
+            isBulkDiscountApplied: pricing.isBulkApplied,
+            total: pricing.total
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleAddComplementaryItem = (item: InventoryItem, qty: number = 1) => {
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((c) => c.itemId === item.id);
+      if (existingIndex > -1) {
+        const copy = [...prev];
+        const nextQty = Number((copy[existingIndex].quantity + qty).toFixed(3));
+        copy[existingIndex] = {
+          ...copy[existingIndex],
+          quantity: nextQty,
+          isComplementary: true,
+          effectivePrice: 0,
+          isBulkDiscountApplied: false,
+          total: 0
+        };
+        return copy;
+      }
+      return [
+        ...prev,
+        {
+          itemId: item.id!,
+          nameEn: item.nameEn,
+          nameHi: item.nameHi,
+          unit: item.unit,
+          quantity: qty,
+          salePrice: item.salePrice,
+          costPrice: item.costPrice,
+          isComplementary: true,
+          effectivePrice: 0,
+          isBulkDiscountApplied: false,
+          total: 0
+        }
+      ];
+    });
   };
 
   const handleUpdatePrice = async (itemId: number, newPrice: number, updateCatalog: boolean = false) => {
@@ -254,6 +323,7 @@ export const PosScreen: React.FC = () => {
               discount={discount}
               onUpdateQuantity={handleUpdateQuantity}
               onUpdatePrice={handleUpdatePrice}
+              onToggleComplementary={handleToggleComplementary}
               onRemoveItem={handleRemoveItem}
               onClearCart={handleClearCart}
               onSetDiscount={setDiscount}
@@ -295,6 +365,8 @@ export const PosScreen: React.FC = () => {
         customer={selectedCustomer}
         onUpdatePrice={handleUpdatePrice}
         onUpdateQuantity={handleUpdateQuantity}
+        onToggleComplementary={handleToggleComplementary}
+        onAddComplementaryItem={handleAddComplementaryItem}
         onRemoveItem={handleRemoveItem}
         onClose={() => setShowPaymentModal(false)}
         onOpenCustomerSelect={() => {

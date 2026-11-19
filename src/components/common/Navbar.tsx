@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard,
   ShoppingCart, 
@@ -13,10 +13,12 @@ import {
   Languages, 
   Store,
   Users,
-  MoreHorizontal
+  MoreHorizontal,
+  Calculator
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
+import { CalculatorModal } from './CalculatorModal';
 
 export type ActiveTab = 'dashboard' | 'pos' | 'inventory' | 'khata' | 'vendors' | 'reports' | 'settings';
 
@@ -33,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { language, toggleLanguage, t } = useLanguage();
   const { settings, isOnline, isSyncing, syncNow } = useSettings();
+  const [isCalcOpen, setIsCalcOpen] = useState(false);
 
   const handleManualSync = async () => {
     const msg = await syncNow();
@@ -136,6 +139,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Languages className="w-3.5 h-3.5 text-emerald-700" />
               <span>{language === 'hi' ? 'हिंदी' : 'EN'}</span>
             </button>
+
+            {/* Kirana Calculator Button */}
+            <button
+              onClick={() => setIsCalcOpen(true)}
+              className="flex items-center gap-1 bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold border border-emerald-700 shadow-sm transition-all cursor-pointer"
+              title="किराना कैलकुलेटर (Quick Calculator)"
+            >
+              <Calculator className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">कैलकुलेटर</span>
+            </button>
           </div>
         </div>
 
@@ -185,6 +198,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           );
         })}
       </nav>
+
+      {/* Global Kirana Calculator Modal */}
+      <CalculatorModal
+        isOpen={isCalcOpen}
+        onClose={() => setIsCalcOpen(false)}
+      />
     </>
   );
 };

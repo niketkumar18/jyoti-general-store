@@ -59,10 +59,10 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
   const dueDateTimestamp = invoice.createdAt + 7 * 24 * 60 * 60 * 1000;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full overflow-hidden flex flex-col max-h-[95dvh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in print:p-0 print:bg-white print:static print:overflow-visible">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-3xl w-full overflow-hidden flex flex-col max-h-[95dvh] print:max-h-none print:shadow-none print:border-none print:w-full print:rounded-none">
         {/* Modal Top Header */}
-        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between shrink-0 print:hidden">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
               <CheckCircle className="w-5 h-5" />
@@ -217,8 +217,15 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
                           {idx + 1}
                         </td>
                         <td className="p-2 border-r border-slate-200 font-bold text-slate-900">
-                          <div>{item.nameHi || item.nameEn}</div>
-                          {item.discountPercentage ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{item.nameHi || item.nameEn}</span>
+                            {item.isComplementary && (
+                              <span className="text-[9px] font-black text-purple-800 bg-purple-100 px-1.5 py-0.2 rounded border border-purple-300">
+                                🎁 मुफ्त (Free)
+                              </span>
+                            )}
+                          </div>
+                          {!item.isComplementary && item.discountPercentage ? (
                             <span className="text-[9px] text-amber-800 font-semibold block">
                               ({item.discountPercentage}% छूट @ ₹{item.unitPrice})
                             </span>
@@ -228,10 +235,10 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
                           {item.quantity} {item.unit}
                         </td>
                         <td className="p-2 border-r border-slate-200 text-right text-slate-700 font-medium">
-                          {formatCurrencyPrecise(item.unitPrice)}
+                          {item.isComplementary ? '₹0.00' : formatCurrencyPrecise(item.unitPrice)}
                         </td>
                         <td className="p-2 text-right font-black text-slate-900">
-                          {formatCurrencyPrecise(item.total)}
+                          {item.isComplementary ? '₹0.00' : formatCurrencyPrecise(item.total)}
                         </td>
                       </tr>
                     ))}
@@ -341,7 +348,7 @@ export const InvoiceViewModal: React.FC<InvoiceViewModalProps> = ({
         </div>
 
         {/* 1-Click WhatsApp + PDF + Print Actions */}
-        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 space-y-2 shrink-0 sticky bottom-0 z-10">
+        <div className="p-3 sm:p-4 bg-white border-t border-slate-200 space-y-2 shrink-0 sticky bottom-0 z-10 print:hidden">
           {/* Primary 1-Click WhatsApp Button */}
           <button
             onClick={handleWhatsApp}
