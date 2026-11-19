@@ -1,7 +1,7 @@
 import { db } from './index';
 import type { InventoryItem, Customer, ShopSettings, Vendor, VendorLedgerEntry } from '../types';
 
-export const DEFAULT_GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbx0WQ2FSadfcjUwPfHYj8g6kEuSEWAE1jDISxfQL1_GWVLs7HD-bhc_BH5c_wJ9pD-M/exec';
+export const DEFAULT_GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzPkVZvXdW3KrWcKjR6qn8_yaciU_QJxOle0nWRWaEI7vejh0HzLG1t1yvL7BH4zlJj/exec';
 export const DEFAULT_GOOGLE_SHEET_DOCUMENT_URL = 'https://docs.google.com/spreadsheets/d/1_RZUvzdgP4TUIVl0M0DyUTyyIgjkSmQ_nhlvgm781N0/edit?gid=1348342111#gid=1348342111';
 
 export const initialSettings: ShopSettings = {

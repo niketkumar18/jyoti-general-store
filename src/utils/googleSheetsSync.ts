@@ -746,7 +746,7 @@ export async function pullFromGoogleSheets(
     const sheetId = extractSheetId(sheetDocumentUrl) || '';
     const fetchUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=PULL&sheetId=${encodeURIComponent(sheetId)}&_t=${Date.now()}`;
 
-    const resp = await fetchWithTimeout(fetchUrl, {}, 9000);
+    const resp = await fetchWithTimeout(fetchUrl, {}, 35000);
     if (!resp.ok) {
       if (resp.status === 403) {
         throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में "Who has access" को "Anyone" चुनें।');
@@ -1250,13 +1250,13 @@ export async function syncFullDatabaseToGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
 
     for (const inv of allInvoices) {
@@ -1311,13 +1311,13 @@ export async function syncItemsToGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1352,13 +1352,13 @@ export async function deleteItemFromGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1389,13 +1389,13 @@ export async function syncCustomersToGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1429,13 +1429,13 @@ export async function deleteCustomerFromGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1466,13 +1466,13 @@ export async function syncVendorsToGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {
@@ -1506,13 +1506,13 @@ export async function deleteVendorFromGoogleSheets(
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
-    }, 9000).catch(async () => {
+    }, 30000).catch(async () => {
       await fetchWithTimeout(webhookUrl.trim(), {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }, 5000).catch(() => null);
+      }, 10000).catch(() => null);
     });
     return true;
   } catch (err) {

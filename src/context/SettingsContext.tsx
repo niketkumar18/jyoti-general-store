@@ -56,7 +56,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
 
       // Ensure active Google Apps Script Web App URL is set
-      if (!effective.googleSheetsUrl || effective.googleSheetsUrl.includes('AKfycbxEBvSKonGm')) {
+      if (!effective.googleSheetsUrl || !effective.googleSheetsUrl.includes('AKfycbzPkVZvXdW3')) {
         effective.googleSheetsUrl = DEFAULT_GOOGLE_SHEETS_URL;
         await db.settings.put({ key: 'shop_settings', value: effective });
       }
