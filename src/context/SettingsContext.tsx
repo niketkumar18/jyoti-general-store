@@ -49,10 +49,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
-      // Ensure default Google Sheets URL is configured if empty
-      if (!effective.googleSheetsUrl) {
-        effective.googleSheetsUrl = DEFAULT_GOOGLE_SHEETS_URL;
-        effective.autoSync = true;
+      // Clear out the obsolete / dead default Google Apps Script URL if present
+      if (effective.googleSheetsUrl && effective.googleSheetsUrl.includes('AKfycbxEBvSKonGm')) {
+        effective.googleSheetsUrl = '';
         await db.settings.put({ key: 'shop_settings', value: effective });
       }
 
@@ -122,12 +121,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
 
-    // Periodic 2-way sync every 30 seconds
+    // Periodic 2-way sync every 15 seconds between active devices
     const interval = setInterval(() => {
       if (settingsRef.current.autoSync && settingsRef.current.googleSheetsUrl && navigator.onLine) {
         triggerSilentTwoWaySync(settingsRef.current.googleSheetsUrl, settingsRef.current.googleSheetDocumentUrl);
       }
-    }, 30000);
+    }, 15000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);

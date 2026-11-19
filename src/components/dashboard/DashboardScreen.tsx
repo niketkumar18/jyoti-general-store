@@ -250,14 +250,24 @@ export const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) 
             <X className="w-4 h-4" />
           </button>
           <div className="pr-6 space-y-2">
-            <p className="text-xs sm:text-sm font-bold leading-snug">
-              मोबाइल और लैपटॉप पर ऑटो-सिंक व सप्लायर बिल अपलोड अब लाइव है!
+            <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm">
+              <span className={`w-2.5 h-2.5 rounded-full ${settings.googleSheetsUrl ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'}`}></span>
+              <span>
+                {settings.googleSheetsUrl
+                  ? '🟢 मोबाइल और लैपटॉप 2-तरफा ऑटो-सिंक सक्रिय है!'
+                  : '⚠️ मोबाइल ⇄ लैपटॉप सिंक: Google Sheet लिंक करें (2 मिनट)'}
+              </span>
+            </div>
+            <p className="text-xs text-blue-100">
+              {settings.googleSheetsUrl
+                ? 'मोबाइल पर बना बिल तुरंत लैपटॉप पर दिखेगा और लैपटॉप पर बना बिल मोबाइल पर!'
+                : 'दोनों डिवाइस को आपस में जोड़ने के लिए अपनी Google Sheet का Apps Script लिंक दर्ज करें।'}
             </p>
             <button
               onClick={() => onNavigate('settings')}
-              className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-lg uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm"
+              className="px-3 py-1 bg-amber-400 hover:bg-amber-500 active:scale-95 text-slate-950 font-black text-xs rounded-lg uppercase tracking-wider transition-all inline-flex items-center gap-1 shadow-sm cursor-pointer"
             >
-              <span>सिंक सेटिंग्स देखें →</span>
+              <span>{settings.googleSheetsUrl ? 'QR कोड व सिंक सेटिंग्स देखें →' : '⚡ 2 मिनट में सिंक लिंक करें →'}</span>
             </button>
           </div>
         </div>

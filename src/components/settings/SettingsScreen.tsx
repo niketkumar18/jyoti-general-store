@@ -524,18 +524,30 @@ export const SettingsScreen: React.FC = () => {
 
           {/* Test Sync Feedback Banner */}
           {testSyncMsg && (
-            <div className="p-3 bg-emerald-100 border border-emerald-300 rounded-xl text-emerald-900 text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in">
+            <div
+              className={`p-3 border rounded-xl text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in ${
+                testSyncMsg.includes('त्रुटि') || testSyncMsg.includes('अमान्य') || testSyncMsg.includes('विफल') || testSyncMsg.includes('403') || testSyncMsg.includes('404')
+                  ? 'bg-rose-50 border-rose-300 text-rose-900'
+                  : 'bg-emerald-100 border-emerald-300 text-emerald-900'
+              }`}
+            >
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>{testSyncMsg}</span>
+                <CheckCircle2
+                  className={`w-4 h-4 shrink-0 ${
+                    testSyncMsg.includes('त्रुटि') || testSyncMsg.includes('अमान्य') || testSyncMsg.includes('विफल') || testSyncMsg.includes('403') || testSyncMsg.includes('404')
+                      ? 'text-rose-600'
+                      : 'text-emerald-700'
+                  }`}
+                />
+                <span className="leading-relaxed">{testSyncMsg}</span>
               </div>
               <a
                 href={formData.googleSheetDocumentUrl || 'https://sheets.google.com'}
                 target="_blank"
                 rel="noreferrer"
-                className="text-emerald-800 underline font-bold shrink-0 flex items-center gap-1 hover:text-emerald-950"
+                className="underline font-bold shrink-0 flex items-center gap-1 hover:opacity-80"
               >
-                <span>शीट खोलकर देखें</span>
+                <span>शीट खोलें</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>

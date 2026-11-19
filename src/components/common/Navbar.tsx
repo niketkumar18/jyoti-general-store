@@ -115,18 +115,31 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Sync Button */}
+            {/* Sync Button & Status Indicator */}
             <button
-              onClick={handleManualSync}
+              onClick={() => {
+                if (!settings.googleSheetsUrl) {
+                  setActiveTab('settings');
+                  onSyncNotification('कृपया नीचे Google Sheet Web App URL जोड़ें (2-मिनट सेटअप देखें)');
+                  return;
+                }
+                handleManualSync();
+              }}
               disabled={isSyncing}
-              title={t('sync_now')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-emerald-100 rounded-lg text-xs font-semibold border border-emerald-700 shadow-sm transition-all ${
-                isSyncing ? 'opacity-80 cursor-wait' : ''
-              }`}
+              title={settings.googleSheetsUrl ? t('sync_now') : 'Google Sheets सिंक सेटअप करें'}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all cursor-pointer ${
+                !settings.googleSheetsUrl
+                  ? 'bg-amber-500/20 text-amber-200 border-amber-500/40 hover:bg-amber-500/30 animate-pulse'
+                  : 'bg-emerald-800 hover:bg-emerald-700 active:scale-95 text-emerald-100 border-emerald-700'
+              } ${isSyncing ? 'opacity-80 cursor-wait' : ''}`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-emerald-300 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline">
-                {isSyncing ? 'सिंक हो रहा...' : t('synced')}
+              <RefreshCw className={`w-3.5 h-3.5 ${!settings.googleSheetsUrl ? 'text-amber-300' : 'text-emerald-300'} ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">
+                {isSyncing
+                  ? 'सिंक हो रहा...'
+                  : !settings.googleSheetsUrl
+                  ? '⚠️ सिंक जोड़ें'
+                  : '🔄 सिंक करें'}
               </span>
             </button>
 

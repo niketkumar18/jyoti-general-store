@@ -554,10 +554,16 @@ export async function syncPendingToGoogleSheets(
   }
 
   try {
-    const unsyncedInvoices = await db.invoices.where('syncedToGoogle').equals(0 as any).toArray();
-    const unsyncedLedgers = await db.ledger.where('syncedToGoogle').equals(0 as any).toArray();
+    const allInvoices = await db.invoices.toArray();
+    const unsyncedInvoices = allInvoices.filter((inv) => !inv.syncedToGoogle);
 
-    if (unsyncedInvoices.length === 0 && unsyncedLedgers.length === 0) {
+    const allLedgers = await db.ledger.toArray();
+    const unsyncedLedgers = allLedgers.filter((led) => !led.syncedToGoogle);
+
+    const allVendorLedgers = await db.vendorLedger.toArray();
+    const unsyncedVendorLedgers = allVendorLedgers.filter((vl) => !vl.syncedToGoogle);
+
+    if (unsyncedInvoices.length === 0 && unsyncedLedgers.length === 0 && unsyncedVendorLedgers.length === 0) {
       return {
         success: true,
         syncedInvoices: 0,
@@ -566,19 +572,39 @@ export async function syncPendingToGoogleSheets(
       };
     }
 
+    // Ping check to verify Webhook URL is alive and accessible
+    const testUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=STATUS&_t=${Date.now()}`;
+    const pingResp = await fetch(testUrl).catch(() => null);
+    if (pingResp && !pingResp.ok) {
+      if (pingResp.status === 403) {
+        throw new Error('Google Apps Script अनुमति त्रुटि (403): कृपया Apps Script में "Who has access" को "Anyone" सेट करें और New version डिप्लॉय करें।');
+      }
+      if (pingResp.status === 404) {
+        throw new Error('Google Apps Script URL नहीं मिला (404): कृपया नया Web App URL बनाएं और DEN सेटिंग्स में पेस्ट करें।');
+      }
+    }
+
     const payload = {
       action: 'SYNC_PENDING',
       sheetId: extractSheetId(sheetDocumentUrl),
       invoices: unsyncedInvoices,
       ledgers: unsyncedLedgers,
+      vendorLedgers: unsyncedVendorLedgers,
       timestamp: Date.now()
     };
 
     await fetch(webhookUrl.trim(), {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
+    }).catch(async () => {
+      // Fallback
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
     });
 
     for (const inv of unsyncedInvoices) {
@@ -586,6 +612,9 @@ export async function syncPendingToGoogleSheets(
     }
     for (const led of unsyncedLedgers) {
       if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
+    }
+    for (const vl of unsyncedVendorLedgers) {
+      if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
     }
 
     return {
@@ -639,6 +668,12 @@ export async function pullFromGoogleSheets(
 
     const resp = await fetch(fetchUrl);
     if (!resp.ok) {
+      if (resp.status === 403) {
+        throw new Error('Google Apps Script अनुमति त्रुटि (HTTP 403): कृपया Apps Script में Deploy > Manage deployments > Edit करके "Who has access" को "Anyone" चुनें और New version डिप्लॉय करें।');
+      }
+      if (resp.status === 404) {
+        throw new Error('Google Apps Script URL नहीं मिला (HTTP 404): कृपया Apps Script में नया Web App URL बनाएं और DEN सेटिंग्स में पेस्ट करें।');
+      }
       throw new Error(`Google Sheets सर्वर से संपर्क नहीं हो सका (HTTP ${resp.status})`);
     }
 
@@ -991,6 +1026,19 @@ export async function syncFullDatabaseToGoogleSheets(
   }
 
   try {
+    // Ping check to verify Webhook URL is alive and accessible
+    const testUrl = `${webhookUrl.trim()}${webhookUrl.includes('?') ? '&' : '?'}action=STATUS&_t=${Date.now()}`;
+    const pingResp = await fetch(testUrl).catch(() => null);
+    if (pingResp && !pingResp.ok) {
+      if (pingResp.status === 403) {
+        throw new Error('Google Apps Script अनुमति त्रुटि (403): कृपया Apps Script में "Who has access" को "Anyone" सेट करें और New version डिप्लॉय करें।');
+      }
+      if (pingResp.status === 404) {
+        throw new Error('Google Apps Script URL नहीं मिला (404): कृपया नया Web App URL बनाएं और DEN सेटिंग्स में पेस्ट करें।');
+      }
+      throw new Error(`Google Sheets सर्वर से संपर्क नहीं हो सका (HTTP ${pingResp.status})`);
+    }
+
     const allInvoices = await db.invoices.toArray();
     const allLedgers = await db.ledger.toArray();
     const allCustomers = await db.customers.toArray();
@@ -1012,9 +1060,15 @@ export async function syncFullDatabaseToGoogleSheets(
 
     await fetch(webhookUrl.trim(), {
       method: 'POST',
-      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
+    }).catch(async () => {
+      await fetch(webhookUrl.trim(), {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
     });
 
     for (const inv of allInvoices) {
@@ -1022,6 +1076,9 @@ export async function syncFullDatabaseToGoogleSheets(
     }
     for (const led of allLedgers) {
       if (led.id) await db.ledger.update(led.id, { syncedToGoogle: true });
+    }
+    for (const vl of allVendorLedgers) {
+      if (vl.id) await db.vendorLedger.update(vl.id, { syncedToGoogle: true });
     }
 
     return {

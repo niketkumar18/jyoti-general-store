@@ -29,7 +29,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { formatCurrency, formatUnit, calculateRiskLevel } from '../../utils/formatters';
 import { playSuccessChime } from '../../utils/audio';
 import { db } from '../../db';
-import { syncPendingToGoogleSheets } from '../../utils/googleSheetsSync';
+import { syncTwoWay, syncPendingToGoogleSheets } from '../../utils/googleSheetsSync';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -249,9 +249,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         }
       }
 
-      // 4. Auto-sync in background to Google Sheets if Webhook is configured
+      // 4. Instant 2-way sync to Google Sheets (Pushes new bill and pulls other device updates)
       if (settings.googleSheetsUrl) {
-        syncPendingToGoogleSheets(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
+        syncTwoWay(settings.googleSheetsUrl, settings.googleSheetDocumentUrl)
           .catch((e) => console.error('Real-time Google Sheets sync error:', e));
       }
 
