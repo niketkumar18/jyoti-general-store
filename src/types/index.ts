@@ -39,6 +39,8 @@ export interface InventoryItem {
   bulkDiscountPercentage?: number; // e.g. 10 (10% छूट दर)
   bulkDiscountRate?: number; // e.g. 4.5 (यदि मात्रा >= threshold हो तो नया थोक रेट प्रति पीस/किग्रा)
   isComplementary?: boolean; // उपहार / कॉम्प्लीमेंट्री उत्पाद टैग (Optional)
+  preferredVendorId?: number; // सप्लायर / महाजन ID (सिंक हेतु)
+  preferredVendorName?: string; // सप्लायर का नाम
   createdAt: number;
   updatedAt: number;
 }

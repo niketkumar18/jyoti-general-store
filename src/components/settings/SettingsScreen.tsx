@@ -250,7 +250,7 @@ export const SettingsScreen: React.FC = () => {
               <input
                 type="number"
                 min="0"
-                step="500"
+                step="any"
                 value={formData.defaultCreditLimit}
                 onChange={(e) =>
                   setFormData({ ...formData, defaultCreditLimit: parseFloat(e.target.value) || 2000 })

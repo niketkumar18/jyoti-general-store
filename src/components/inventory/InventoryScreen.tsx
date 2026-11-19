@@ -41,6 +41,7 @@ export const InventoryScreen: React.FC = () => {
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isVendorPurchaseOpen, setIsVendorPurchaseOpen] = useState(false);
+  const [selectedPurchaseItemId, setSelectedPurchaseItemId] = useState<number | null>(null);
 
   // Filter items
   const filteredItems = items.filter((item) => {
@@ -174,7 +175,10 @@ export const InventoryScreen: React.FC = () => {
 
             {/* Vendor Stock Purchase Button */}
             <button
-              onClick={() => setIsVendorPurchaseOpen(true)}
+              onClick={() => {
+                setSelectedPurchaseItemId(null);
+                setIsVendorPurchaseOpen(true);
+              }}
               className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer transition-all"
               title="सप्लायर से नया माल खरीद कर स्टॉक व खाता अपडेट करें"
             >
@@ -277,16 +281,30 @@ export const InventoryScreen: React.FC = () => {
 
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Primary Action: Buy Stock via Supplier (Syncs Stock, Rate & Vendor Khata) */}
+                          <button
+                            onClick={() => {
+                              setSelectedPurchaseItemId(item.id || null);
+                              setIsVendorPurchaseOpen(true);
+                            }}
+                            className="py-1 px-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                            title="सप्लायर बिल से नया स्टॉक जोड़ें (दर व खाता सिंक रहेगा)"
+                          >
+                            <PackagePlus className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="hidden sm:inline">+ स्टॉक खरीद</span>
+                          </button>
+
+                          {/* Secondary: Quick Stock Adjust */}
                           <button
                             onClick={() => {
                               setItemToAdjust(item);
                               setIsAdjustOpen(true);
                             }}
-                            className="py-1 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg flex items-center gap-1"
+                            className="py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg flex items-center gap-1 cursor-pointer"
                             title={t('quick_adjust_stock')}
                           >
                             <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
-                            <span className="hidden sm:inline">स्टॉक बदलें</span>
+                            <span className="hidden md:inline">सुधार</span>
                           </button>
 
                           <button
@@ -294,7 +312,7 @@ export const InventoryScreen: React.FC = () => {
                               setItemToEdit(item);
                               setIsFormOpen(true);
                             }}
-                            className="p-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-lg"
+                            className="p-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-lg cursor-pointer"
                             title="संपादित करें"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -302,7 +320,7 @@ export const InventoryScreen: React.FC = () => {
 
                           <button
                             onClick={() => handleDeleteItem(item)}
-                            className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg"
+                            className="p-1.5 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 rounded-lg cursor-pointer"
                             title="हटाएं"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -338,6 +356,10 @@ export const InventoryScreen: React.FC = () => {
         isOpen={isAdjustOpen}
         item={itemToAdjust}
         onClose={() => setIsAdjustOpen(false)}
+        onOpenVendorPurchase={(itemId) => {
+          setSelectedPurchaseItemId(itemId);
+          setIsVendorPurchaseOpen(true);
+        }}
       />
 
       {/* Category Manager Modal */}
@@ -349,7 +371,11 @@ export const InventoryScreen: React.FC = () => {
       {/* Vendor Stock Purchase Modal */}
       <VendorPurchaseModal
         isOpen={isVendorPurchaseOpen}
-        onClose={() => setIsVendorPurchaseOpen(false)}
+        initialItemId={selectedPurchaseItemId}
+        onClose={() => {
+          setIsVendorPurchaseOpen(false);
+          setSelectedPurchaseItemId(null);
+        }}
       />
 
       {/* Mobile Floating Action Button (+ नया सामान) - Always visible when scrolling on mobile */}

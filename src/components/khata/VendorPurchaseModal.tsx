@@ -28,6 +28,7 @@ import { playSuccessChime } from '../../utils/audio';
 interface VendorPurchaseModalProps {
   isOpen: boolean;
   initialVendorId?: number | null;
+  initialItemId?: number | null;
   onClose: () => void;
   onPurchaseComplete?: () => void;
 }
@@ -35,6 +36,7 @@ interface VendorPurchaseModalProps {
 export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
   isOpen,
   initialVendorId,
+  initialItemId,
   onClose,
   onPurchaseComplete
 }) => {
@@ -91,6 +93,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
   const [newVendorFirm, setNewVendorFirm] = useState('');
   const [newVendorMobile, setNewVendorMobile] = useState('');
 
+  // Synchronize initialVendorId and fallback to first vendor or item vendor
   useEffect(() => {
     if (initialVendorId) {
       setSelectedVendorId(initialVendorId);
@@ -99,22 +102,35 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
     }
   }, [initialVendorId, vendors]);
 
-  // When an existing item is selected, update unit, rate and selling price automatically
+  // Synchronize initialItemId when opened from stock page
+  useEffect(() => {
+    if (initialItemId) {
+      setSelectedItemId(initialItemId);
+    }
+  }, [initialItemId, isOpen]);
+
+  // When an existing item is selected, update unit, rate, selling price and vendor automatically
   useEffect(() => {
     if (typeof selectedItemId === 'number') {
       const matched = items.find((i) => i.id === selectedItemId);
       if (matched) {
         setUnit(matched.unit);
-        if (matched.costPrice) {
+        if (typeof matched.costPrice === 'number' && matched.costPrice > 0) {
           setRatePerUnit(matched.costPrice);
           if (typeof quantity === 'number' && quantity > 0) {
             setTotalCost(Number((quantity * matched.costPrice).toFixed(2)));
           }
         }
-        setNewSellingPrice(matched.salePrice);
+        if (typeof matched.salePrice === 'number') {
+          setNewSellingPrice(matched.salePrice);
+        }
+        // Auto-select preferred supplier if present and no vendor was explicitly chosen
+        if (matched.preferredVendorId && !initialVendorId) {
+          setSelectedVendorId(matched.preferredVendorId);
+        }
       }
     }
-  }, [selectedItemId, items]);
+  }, [selectedItemId, items, initialVendorId]);
 
   if (!isOpen) return null;
 
@@ -183,8 +199,16 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
       alert('कृपया सप्लायर (Vendor) चुनें या नया जोड़ें');
       return;
     }
+    if (!selectedItemId) {
+      alert('कृपया वह सामान चुनें जिसका नया स्टॉक आया है, या "+ नया सामान" चुनें');
+      return;
+    }
     if (numQty <= 0) {
       alert('कृपया वैध मात्रा (Quantity) दर्ज करें');
+      return;
+    }
+    if (typeof ratePerUnit !== 'number' || ratePerUnit <= 0) {
+      alert('कृपया वैध खरीद दर (Rate per unit) दर्ज करें');
       return;
     }
     if (numTotalCost <= 0) {
@@ -220,6 +244,8 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
           costPrice: effectiveCost,
           stockQty: numQty,
           lowStockThreshold: 5,
+          preferredVendorId: vendor.id,
+          preferredVendorName: vendor.firmName || vendor.name,
           createdAt: Date.now(),
           updatedAt: Date.now()
         });
@@ -240,6 +266,8 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
           stockQty: newStock,
           costPrice: effectiveCost,
           salePrice: effectiveSale,
+          preferredVendorId: vendor.id,
+          preferredVendorName: vendor.firmName || vendor.name,
           updatedAt: Date.now()
         });
       }
@@ -258,6 +286,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
       });
 
       // 3. Create Vendor Ledger Entry
+      const effectiveEntryCost = typeof ratePerUnit === 'number' && ratePerUnit > 0 ? ratePerUnit : calculatedUnitCost;
       await db.vendorLedger.add({
         vendorId: vendor.id!,
         vendorName: vendor.name,
@@ -270,10 +299,10 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
         itemName: finalItemName,
         itemQuantity: numQty,
         itemUnit: unit,
-        unitCostPrice: calculatedUnitCost,
+        unitCostPrice: effectiveEntryCost,
         billNumber: billNumber.trim() || undefined,
         billImageUrl: billImage || undefined,
-        description: `माल खरीद: ${finalItemName} (${numQty} ${unit} @ ₹${calculatedUnitCost}/${unit}) — नकद: ₹${numPaid}, उधार: ₹${calculatedDue}`,
+        description: `माल खरीद: ${finalItemName} (${numQty} ${unit} @ ₹${effectiveEntryCost}/${unit}) — नकद: ₹${numPaid}, उधार: ₹${calculatedDue}`,
         runningBalance: newBal,
         createdAt: Date.now()
       });
@@ -468,6 +497,8 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
 
                     <input
                       type="number"
+                      step="any"
+                      min="0"
                       placeholder="अनुमानित बिक्री दर (₹)"
                       value={customSalePrice}
                       onChange={(e) => setCustomSalePrice(e.target.value ? Number(e.target.value) : '')}
@@ -486,8 +517,8 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                 </label>
                 <input
                   type="number"
-                  step="0.05"
-                  min="0.01"
+                  step="any"
+                  min="0.001"
                   required
                   value={quantity}
                   onChange={(e) => handleQuantityChange(e.target.value ? parseFloat(e.target.value) : '')}
@@ -538,7 +569,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="0.5"
+                    step="any"
                     required
                     value={ratePerUnit}
                     onChange={(e) => handleRateChange(e.target.value ? parseFloat(e.target.value) : '')}
@@ -562,8 +593,8 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                   <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">₹</span>
                   <input
                     type="number"
-                    min="1"
-                    step="1"
+                    min="0"
+                    step="any"
                     required
                     value={totalCost}
                     onChange={(e) => handleTotalCostChange(e.target.value ? parseFloat(e.target.value) : '')}
@@ -593,7 +624,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                     <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
                     <input
                       type="number"
-                      step="0.5"
+                      step="any"
                       min="0"
                       value={newSellingPrice}
                       onChange={(e) => setNewSellingPrice(e.target.value ? parseFloat(e.target.value) : '')}
@@ -626,7 +657,7 @@ export const VendorPurchaseModal: React.FC<VendorPurchaseModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="1"
+                    step="any"
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value ? parseFloat(e.target.value) : '')}
                     placeholder="उदा. 200"

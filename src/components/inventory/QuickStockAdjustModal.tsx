@@ -8,12 +8,14 @@ interface QuickStockAdjustModalProps {
   isOpen: boolean;
   item: InventoryItem | null;
   onClose: () => void;
+  onOpenVendorPurchase?: (itemId: number) => void;
 }
 
 export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
   isOpen,
   item,
-  onClose
+  onClose,
+  onOpenVendorPurchase
 }) => {
   const { language } = useLanguage();
   const [adjustment, setAdjustment] = useState<number>(10);
@@ -63,6 +65,29 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
             </p>
           </div>
 
+          {/* Supplier Sync Shortcut Banner */}
+          {onOpenVendorPurchase && item.id && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 text-xs text-indigo-950 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+                <PackagePlus className="w-4 h-4 text-indigo-600" />
+                <span>सप्लायर से नया माल आया है?</span>
+              </div>
+              <p className="text-[11px] text-indigo-800 leading-snug">
+                सप्लायर खाता, पर्चा और खरीद दर एक साथ सिंक रखने के लिए सप्लायर बिल से स्टॉक जोड़ें।
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenVendorPurchase(item.id!);
+                }}
+                className="w-full py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-98 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+              >
+                <span>🛒 सप्लायर बिल से स्टॉक जोड़ें</span>
+              </button>
+            </div>
+          )}
+
           {/* Toggle Add / Subtract */}
           <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
             <button
@@ -93,8 +118,8 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
             </label>
             <input
               type="number"
-              min="0.1"
-              step="1"
+              min="0.001"
+              step="any"
               value={adjustment}
               onChange={(e) => setAdjustment(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-slate-300 rounded-xl text-lg font-black text-center text-slate-900"

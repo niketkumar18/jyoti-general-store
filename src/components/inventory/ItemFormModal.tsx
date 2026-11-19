@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Package, Save, Plus, Layers, Tag } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { X, Sparkles, Package, Save, Plus, Layers, Tag, Building2 } from 'lucide-react';
 import type { InventoryItem, UnitType, CategoryType } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
 import { db } from '../../db';
@@ -21,11 +22,13 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
 }) => {
   const { language, t } = useLanguage();
   const { categories, addCategory } = useCategories();
+  const vendors = useLiveQuery(() => db.vendors.toArray()) || [];
 
   const [nameEn, setNameEn] = useState('');
   const [nameHi, setNameHi] = useState('');
   const [category, setCategory] = useState<CategoryType>('flour_grains');
   const [unit, setUnit] = useState<UnitType>('PACKET');
+  const [preferredVendorId, setPreferredVendorId] = useState<number | ''>('');
   const [salePrice, setSalePrice] = useState<number>(0);
   const [costPrice, setCostPrice] = useState<number>(0);
   const [stockQty, setStockQty] = useState<number>(10);
@@ -51,6 +54,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setNameHi(itemToEdit.nameHi);
       setCategory(itemToEdit.category);
       setUnit(itemToEdit.unit);
+      setPreferredVendorId(itemToEdit.preferredVendorId ?? '');
       setSalePrice(itemToEdit.salePrice);
       setCostPrice(itemToEdit.costPrice || 0);
       setStockQty(itemToEdit.stockQty);
@@ -66,6 +70,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       setNameHi('');
       setCategory(categories[0]?.id || 'flour_grains');
       setUnit('PACKET');
+      setPreferredVendorId('');
       setSalePrice(0);
       setCostPrice(0);
       setStockQty(10);
@@ -130,6 +135,10 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
     const percentageVal = enableBulkRule && typeof bulkPercentage === 'number' && bulkPercentage > 0 ? bulkPercentage : undefined;
     const bulkRateVal = enableBulkRule && typeof bulkRate === 'number' && bulkRate > 0 ? bulkRate : undefined;
 
+    const vendorObj = typeof preferredVendorId === 'number'
+      ? vendors.find((v) => v.id === preferredVendorId)
+      : null;
+
     const payload: Omit<InventoryItem, 'id'> = {
       nameEn: nameEn.trim() || nameHi.trim(),
       nameHi: nameHi.trim() || nameEn.trim(),
@@ -144,6 +153,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
       bulkDiscountPercentage: percentageVal,
       bulkDiscountRate: bulkRateVal,
       isComplementary,
+      preferredVendorId: typeof preferredVendorId === 'number' ? preferredVendorId : undefined,
+      preferredVendorName: vendorObj ? (vendorObj.firmName || vendorObj.name) : undefined,
       createdAt: itemToEdit?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -342,7 +353,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="any"
                     required
                     value={salePrice || ''}
                     onChange={(e) => setSalePrice(parseFloat(e.target.value) || 0)}
@@ -362,7 +373,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="any"
                     value={costPrice || ''}
                     onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)}
                     placeholder="0"
@@ -371,6 +382,29 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 </div>
                 <p className="text-[10px] text-slate-500 mt-0.5">थोक खरीद मूल्य (मुनाफे हेतु)</p>
               </div>
+            </div>
+
+            {/* Preferred Supplier / Vendor */}
+            <div className="bg-indigo-50/60 p-3 rounded-2xl border border-indigo-200/70">
+              <label className="block text-xs font-bold text-indigo-950 mb-1 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>सप्लायर / महाजन (Preferred Vendor) (वैकल्पिक)</span>
+              </label>
+              <select
+                value={preferredVendorId}
+                onChange={(e) => setPreferredVendorId(e.target.value ? Number(e.target.value) : '')}
+                className="w-full px-3 py-2 bg-white border border-indigo-200 rounded-xl text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="">-- सप्लायर चुनें (वैकल्पिक) --</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.firmName ? `${v.firmName} (${v.name})` : v.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-indigo-700 mt-0.5">
+                यह सामान किस सप्लायर से आता है, ताकि नया स्टॉक जोड़ते समय सप्लायर खाता और रेट सिंक रहे।
+              </p>
             </div>
 
             {/* Bulk / Quantity Discount Rule */}
@@ -431,8 +465,8 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                         <span className="absolute left-2.5 top-2 text-xs font-bold text-slate-400">₹</span>
                         <input
                           type="number"
-                          step="0.1"
-                          min="0.1"
+                          step="any"
+                          min="0.01"
                           value={bulkRate}
                           onChange={(e) =>
                             handleBulkRateChange(
@@ -458,7 +492,7 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                           type="number"
                           min="1"
                           max="99"
-                          step="0.5"
+                          step="any"
                           value={bulkPercentage}
                           onChange={(e) =>
                             handleBulkPercentageChange(
@@ -556,8 +590,9 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
+                  step="any"
                   value={stockQty}
-                  onChange={(e) => setStockQty(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setStockQty(parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
@@ -568,9 +603,10 @@ export const ItemFormModal: React.FC<ItemFormModalProps> = ({
                 </label>
                 <input
                   type="number"
-                  min="1"
+                  min="0.1"
+                  step="any"
                   value={lowStockThreshold}
-                  onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 5)}
+                  onChange={(e) => setLowStockThreshold(parseFloat(e.target.value) || 5)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500"
                 />
               </div>

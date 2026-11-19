@@ -549,7 +549,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.5"
+                                  step="any"
                                   value={tempPrice}
                                   onChange={(e) => setTempPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                                   className="w-full pl-5 pr-2 py-1 bg-white border border-slate-300 rounded-lg font-black text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"

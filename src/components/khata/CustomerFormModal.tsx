@@ -142,7 +142,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                   type="number"
                   required
                   min="0"
-                  step="500"
+                  step="any"
                   value={creditLimit}
                   onChange={(e) => setCreditLimit(parseFloat(e.target.value) || 0)}
                   className="w-full pl-7 pr-3 py-2 border border-slate-300 rounded-xl text-sm font-extrabold text-emerald-800 focus:ring-2 focus:ring-emerald-500"
